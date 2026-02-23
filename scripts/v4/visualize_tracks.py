@@ -66,11 +66,15 @@ def main():
                 width=3,
             )
             label = f"track {item['track_id']} | s={item['score']:.2f}"
+            y_top = max(0, item["y1"] - 16)
+            y_bottom = max(y_top + 1, item["y1"])
+            x_left = max(0, item["x1"])
+            x_right = min(image.width, max(x_left + 1, item["x1"] + 180))
             draw.rectangle(
-                (item["x1"], max(0, item["y1"] - 16), min(image.width, item["x1"] + 180), item["y1"]),
+                (x_left, y_top, x_right, y_bottom),
                 fill="lime",
             )
-            draw.text((item["x1"] + 2, max(0, item["y1"] - 15)), label, fill="black")
+            draw.text((x_left + 2, y_top + 1), label, fill="black")
 
         out_name = frame_key.replace("/", "__")
         out_path = out_dir / out_name
