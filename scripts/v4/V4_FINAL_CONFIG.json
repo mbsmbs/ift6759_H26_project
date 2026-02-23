@@ -1,0 +1,35 @@
+{
+  "model_name": "google/owlvit-base-patch32",
+  "input_root": "data/MoCA/JPEGImages",
+  "inference": {
+    "threshold": 0.1,
+    "top_k_per_frame": 5
+  },
+  "temporal_refine": {
+    "top_k": 5,
+    "iou_weight": 0.35,
+    "area_penalty_lambda": 0.4,
+    "min_score": 0.0,
+    "keep_empty": false
+  },
+  "tracking": {
+    "iou_threshold": 0.3,
+    "score_threshold": 0.0,
+    "max_gap": 1,
+    "min_track_len": 1,
+    "agg": "max",
+    "window": 5
+  },
+  "evaluation": {
+    "iou_threshold": 0.5,
+    "score_threshold": 0.2,
+    "max_det_per_frame": 1
+  },
+  "videos_5": [
+    "arabian_horn_viper",
+    "arctic_fox",
+    "arctic_fox_1",
+    "arctic_fox_2",
+    "arctic_fox_3"
+  ]
+}
