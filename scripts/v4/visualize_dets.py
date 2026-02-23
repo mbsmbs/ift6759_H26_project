@@ -59,9 +59,13 @@ def main():
             label = f"{prompt_text} | s={score:.2f}"
 
             draw.rectangle([(x1, y1), (x2, y2)], outline="red", width=3)
-            text_bg = (x1, max(0, y1 - 16), min(image.width, x1 + 420), y1)
+            y_top = max(0, y1 - 16)
+            y_bottom = max(y_top + 1, y1)
+            x_left = max(0, x1)
+            x_right = min(image.width, max(x_left + 1, x1 + 420))
+            text_bg = (x_left, y_top, x_right, y_bottom)
             draw.rectangle(text_bg, fill="red")
-            draw.text((x1 + 2, max(0, y1 - 15)), label, fill="white")
+            draw.text((x_left + 2, y_top + 1), label, fill="white")
 
         out_name = frame_key.replace("/", "__")
         out_path = out_dir / out_name
