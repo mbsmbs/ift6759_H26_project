@@ -1,0 +1,92 @@
+\documentclass{article}
+\usepackage{neurips_2025}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+
+\title{Détection d’animaux camouflés par information temporelle et modèles Vision-Langage}
+
+\begin{document}
+\maketitle
+
+\section{Méthodes et Résultats préliminaires}
+
+\subsection{1. Description des méthodes développées}
+\paragraph{V1.} [À compléter]
+
+\paragraph{V2.} [À compléter]
+
+\paragraph{V4.}
+L’objectif de la composante V4 est d’évaluer une approche \textit{Vision--Langage} temporelle pour la détection d’animaux camouflés dans MoCA. La méthode combine une inférence frame-level avec OWL-ViT, un filtrage des boîtes (top-k et contrôle des boîtes trop larges), un raffinement temporel basé sur la cohérence entre frames, puis un tracking IoU avec agrégation pour produire une sortie track-level.
+
+\subsection{2. Changements pertinents par rapport au plan initial}
+\paragraph{V1.} [À compléter]
+
+\paragraph{V2.} [À compléter]
+
+\paragraph{V4.}
+Par rapport au plan initial, l’accent a été mis sur la mise en place d’une chaîne complète et reproductible avant la comparaison inter-méthodes: inférence, raffinement temporel, tracking, visualisation et évaluation. Nous avons également introduit des ajustements pratiques (sélection top-k, pénalisation de surface, cohérence temporelle) pour réduire les boîtes trop larges et stabiliser les détections.
+
+\subsection{3. Résultats préliminaires}
+\paragraph{V1.} [À compléter]
+
+\paragraph{V2.} [À compléter]
+
+\paragraph{V4.}
+Une évaluation préliminaire a été réalisée sur cinq vidéos MoCA:
+\texttt{arabian\_horn\_viper}, \texttt{arctic\_fox}, \texttt{arctic\_fox\_1}, \texttt{arctic\_fox\_2}, \texttt{arctic\_fox\_3}.
+
+Les métriques considérées sont \textit{AP@0.5}, précision, rappel et F1 (avec critère IoU). L’AP@0.5 mesure la qualité globale de détection sur différents seuils de confiance, la précision mesure la proportion de détections correctes (contrôle des faux positifs), le rappel mesure la proportion d’objets retrouvés (contrôle des objets manqués), et F1 résume le compromis précision-rappel. Ces métriques sont complémentaires et nécessaires pour éviter une interprétation biaisée des performances. À ce stade, nous ne présentons pas encore de tableau chiffré final, car le protocole d’évaluation (seuils IoU et seuils de score) est encore en consolidation.
+
+\paragraph{Exemples qualitatifs.}
+La Figure~\ref{fig:v4_qual_pair} montre un exemple correct et un exemple non-correct de détection V4.
+
+\begin{figure}[h]
+\centering
+\begin{minipage}{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../outputs/owlvit/final/vis_dets_5videos/arabian_horn_viper__00000.jpg}
+\end{minipage}
+\hfill
+\begin{minipage}{0.48\linewidth}
+  \centering
+  \includegraphics[width=\linewidth]{../outputs/owlvit/final/vis_dets_5videos/arabian_horn_viper__00015.jpg}
+\end{minipage}
+\caption{Exemples qualitatifs V4: à gauche un cas correct, à droite un cas non-correct avec boîte trop large.}
+\label{fig:v4_qual_pair}
+\end{figure}
+
+Les erreurs observées sont surtout des \textit{sur-localisations} (boîtes trop larges), ce qui réduit l’IoU et pénalise surtout le rappel et l’AP@0.5. Globalement, la méthode est opérationnelle, mais sa robustesse reste variable selon les scènes.
+
+\subsection{4. Défis}
+\paragraph{V1.} [À compléter]
+
+\paragraph{V2.} [À compléter]
+
+\paragraph{V4.}
+Les principaux défis observés concernent d’abord la qualité de localisation, avec des boîtes englobantes parfois trop larges malgré une détection correcte de l’animal. Nous avons aussi constaté une sensibilité non négligeable à certains hyperparamètres, notamment le seuil de score, la pénalisation de surface et la pondération temporelle. Un autre défi important est le choix de métriques et de seuils d’évaluation pertinents (IoU, seuil de confiance), car ces choix influencent fortement l’interprétation des performances. Enfin, les performances varient selon le type de scène et le degré de camouflage, ce qui confirme l’hétérogénéité du jeu de données MoCA.
+
+\subsection{5. Description des méthodes prévues}
+\paragraph{V1.} [À compléter]
+
+\paragraph{V2.} [À compléter]
+
+\paragraph{V3.}
+Plan préliminaire: intégrer un module Vision-Language au pipeline classique (V1/V2) afin de reclasser ou filtrer les détections candidates via des prompts sémantiques, puis évaluer l’impact sur les mêmes métriques (AP@0.5, précision, rappel, F1).
+
+\paragraph{V4.}
+À ce stade, la comparaison finale inter-méthodes n’a pas encore été réalisée. Les prochaines étapes sont:
+\begin{enumerate}
+  \item Comparaison standardisée V1 vs V2 vs V3 vs V4
+  \item Fine-tuning de la composante V4, puis comparaison avec la version zero-shot.
+\end{enumerate}
+
+\end{document}
