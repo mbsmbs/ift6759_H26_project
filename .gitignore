@@ -1,7 +1,6 @@
 *.DS_Store
 
 data/
-scripts/
 Annotations/
 V1/
 V2/
