@@ -1,8 +1,11 @@
+# Min
 *.DS_Store
 
 data/
 owlvit/
 *.pyc
+
+# Yanis
 Annotations/
 V1/
 V2/
