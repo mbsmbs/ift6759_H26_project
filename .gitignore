@@ -3,3 +3,8 @@
 data/
 owlvit/
 *.pyc
+Annotations/
+V1/
+V2/
+V2_cls/
+JPEGImages/
