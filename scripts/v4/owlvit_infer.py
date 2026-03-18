@@ -1,7 +1,13 @@
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Dict, List
+
+# Forcer Transformers en mode PyTorch uniquement pour éviter
+# des imports TensorFlow/Keras instables sur certains environnements.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
 
 import torch
 from PIL import Image

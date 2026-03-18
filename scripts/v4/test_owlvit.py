@@ -1,3 +1,9 @@
+import os
+
+# Force l'usage PyTorch-only pour éviter les imports TF/Keras.
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("USE_FLAX", "0")
+
 from transformers import OwlViTProcessor, OwlViTForObjectDetection
 import torch
 from PIL import Image
