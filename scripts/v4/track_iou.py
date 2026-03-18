@@ -3,6 +3,7 @@ from typing import Dict, List
 
 
 def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
+    # IoU entre deux boîtes au format xyxy.
     x1 = max(a["x1"], b["x1"])
     y1 = max(a["y1"], b["y1"])
     x2 = min(a["x2"], b["x2"])
@@ -21,6 +22,7 @@ def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
 
 @dataclass
 class Track:
+    # Structure minimale d'une piste temporelle.
     track_id: int
     frame_keys: List[str] = field(default_factory=list)
     detections: List[Dict[str, float]] = field(default_factory=list)
@@ -43,6 +45,7 @@ def build_tracks(
     score_threshold: float = 0.0,
     min_track_len: int = 1,
 ) -> List[Track]:
+    # Association gloutonne frame->frame basée sur l'IoU.
     frame_keys = sorted(detections_by_frame.keys())
     active_tracks: List[Track] = []
     all_tracks: List[Track] = []
@@ -55,7 +58,7 @@ def build_tracks(
             if float(d.get("score", 0.0)) >= score_threshold
         ]
 
-        # Keep only tracks still eligible for matching.
+        # Conserve uniquement les tracks encore "actifs" (écart <= max_gap).
         active_tracks = [t for t in active_tracks if frame_index - t.last_frame_index <= max_gap]
 
         matched_track_ids = set()
@@ -68,6 +71,7 @@ def build_tracks(
                 if overlap >= iou_threshold:
                     candidates.append((overlap, ti, di))
 
+        # Matching glouton en priorité sur les plus grands IoU.
         candidates.sort(reverse=True, key=lambda x: x[0])
 
         for _, ti, di in candidates:
@@ -81,6 +85,7 @@ def build_tracks(
             unmatched_det_idx.remove(di)
 
         for di in sorted(unmatched_det_idx):
+            # Toute détection non associée démarre une nouvelle piste.
             tr = Track(track_id=next_track_id)
             tr.add(frame_key, current[di], frame_index)
             active_tracks.append(tr)
@@ -91,6 +96,7 @@ def build_tracks(
 
 
 def aggregate_track(track: Track, agg: str = "max", window: int = 5) -> Dict:
+    # Agrège le score de piste (max/mean) et conserve la meilleure boîte pour le résumé.
     if window > 0:
         score_slice = track.detections[-window:]
     else:
@@ -133,4 +139,5 @@ def aggregate_track(track: Track, agg: str = "max", window: int = 5) -> Dict:
 
 
 def tracks_to_jsonable(tracks: List[Track], agg: str = "max", window: int = 5) -> List[Dict]:
+    # Conversion vers un format JSON stable pour la suite du pipeline.
     return [aggregate_track(track=t, agg=agg, window=window) for t in tracks]

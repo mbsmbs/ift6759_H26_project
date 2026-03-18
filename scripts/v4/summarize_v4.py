@@ -4,6 +4,7 @@ from pathlib import Path
 
 
 def parse_args():
+    # Résumé rapide pour diagnostiquer la densité/qualité globale des sorties V4.
     parser = argparse.ArgumentParser(description="Summarize V4 detections and tracks.")
     parser.add_argument("--dets-json", type=str, default="outputs/owlvit/dets_top1.json")
     parser.add_argument("--tracks-json", type=str, default="outputs/owlvit/tracks_top1.json")
@@ -12,12 +13,14 @@ def parse_args():
 
 
 def load_json(path: str):
+    # Petit helper de lecture JSON.
     p = Path(path)
     with p.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def summarize_detections(payload, video=None):
+    # Statistiques simples au niveau frame: couverture, volume et score moyen.
     detections = payload.get("detections", payload)
     frame_keys = sorted(detections.keys())
     if video:
@@ -50,8 +53,10 @@ def summarize_detections(payload, video=None):
 
 
 def summarize_tracks(payload, video=None):
+    # Statistiques au niveau track: nombre, longueur, score agrégé.
     tracks = payload.get("tracks", [])
     if video:
+        # Filtrage robuste: on ne garde que les détections de la vidéo demandée.
         prefix = f"{video}/"
         filtered = []
         for t in tracks:

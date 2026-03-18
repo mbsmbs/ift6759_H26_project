@@ -16,6 +16,7 @@ DEFAULT_PROMPTS = [
 
 
 def load_model(model_name: str, device: str):
+    # Charge OWL-ViT une seule fois pour éviter le surcoût par frame.
     processor = OwlViTProcessor.from_pretrained(model_name)
     model = OwlViTForObjectDetection.from_pretrained(model_name)
     model.to(device)
@@ -32,6 +33,7 @@ def predict_one(
     model: OwlViTForObjectDetection,
     device: str,
 ) -> List[Dict[str, float]]:
+    # Inférence sur une image: boîtes + score + prompt_id + ratio de surface.
     image = Image.open(image_path).convert("RGB")
     img_w, img_h = image.size
     image_area = float(max(1, img_w * img_h))
@@ -67,6 +69,7 @@ def predict_one(
 
 
 def parse_args():
+    # Paramètres d'inférence batch et de filtrage simple des boîtes.
     parser = argparse.ArgumentParser(description="OWL-ViT batch inference on MoCA frames.")
     parser.add_argument("--input-root", default="data/MoCA/JPEGImages", type=str)
     parser.add_argument("--video", required=True, type=str, help="Video folder name inside input root.")
@@ -124,6 +127,7 @@ def main():
     detections = {}
     total = len(frame_paths)
     for idx, frame_path in enumerate(frame_paths, start=1):
+        # Clé normalisée attendue par les autres scripts: "video/frame.jpg".
         key = frame_path.relative_to(input_root).as_posix()
         frame_dets = predict_one(
             image_path=frame_path,
@@ -134,13 +138,16 @@ def main():
             device=device,
         )
         for det in frame_dets:
+            # Score pénalisé par la taille de boîte pour limiter les boîtes trop larges.
             det["score_compact"] = float(det["score"] - args.area_penalty_lambda * det.get("box_area_ratio", 0.0))
 
         frame_dets = sorted(frame_dets, key=lambda d: d["score_compact"], reverse=True)
         original_frame_dets = list(frame_dets)
         if args.max_box_area_ratio is not None:
+            # Supprime les boîtes dépassant un ratio de surface maximal.
             frame_dets = [d for d in frame_dets if d.get("box_area_ratio", 1.0) <= args.max_box_area_ratio]
         if args.keep_top1_if_empty and not frame_dets and original_frame_dets:
+            # Mécanisme de secours: évite les frames totalement vides.
             frame_dets = [original_frame_dets[0]]
         if args.top_k_per_frame is not None and args.top_k_per_frame >= 0:
             frame_dets = frame_dets[: args.top_k_per_frame]

@@ -7,6 +7,7 @@ from eval_moca_detection import evaluate, load_dets, load_gt_from_moca
 
 
 def parse_args():
+    # Paramètres batch pour évaluer plusieurs vidéos MoCA en une seule commande.
     parser = argparse.ArgumentParser(description="Batch evaluation of MoCA videos for V4 detections.")
     parser.add_argument("--dets-json", type=str, required=True)
     parser.add_argument("--annotations-csv", type=str, default="data/MoCA/Annotations/annotations.csv")
@@ -20,6 +21,7 @@ def parse_args():
 
 
 def discover_videos(annotations_csv: Path):
+    # Déduit la liste des vidéos à partir des clés frame "video/frame.jpg".
     gt_all = load_gt_from_moca(annotations_csv, video=None)
     videos = sorted({k.split("/", 1)[0] for k in gt_all.keys()})
     return videos
@@ -42,6 +44,7 @@ def main():
 
     rows = []
     for video in videos:
+        # Évaluation indépendante par vidéo pour faciliter l’analyse comparative.
         gt_by_frame = load_gt_from_moca(annotations_csv, video=video)
         dets_by_frame = load_dets(dets_json, video=video, max_det_per_frame=args.max_det_per_frame)
         result = evaluate(
@@ -80,6 +83,7 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
 
+    # Moyennes macro: chaque vidéo contribue de manière égale.
     macro = {
         "videos": len(rows),
         "ap50": mean(r["ap50"] for r in rows),

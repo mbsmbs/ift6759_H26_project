@@ -6,6 +6,7 @@ from typing import Dict, List, Tuple
 
 
 def parse_args():
+    # Évaluation détection (frame-level) entre prédictions V4 et annotations MoCA.
     parser = argparse.ArgumentParser(description="Evaluate OWL-ViT detections against MoCA GT annotations.")
     parser.add_argument("--dets-json", type=str, required=True, help="Path to detections json.")
     parser.add_argument(
@@ -32,6 +33,7 @@ def parse_args():
 
 
 def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
+    # Calcule l'IoU entre deux boîtes au format (x1, y1, x2, y2).
     x1 = max(a["x1"], b["x1"])
     y1 = max(a["y1"], b["y1"])
     x2 = min(a["x2"], b["x2"])
@@ -49,6 +51,7 @@ def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
 
 
 def load_gt_from_moca(csv_path: Path, video: str = None) -> Dict[str, Dict[str, float]]:
+    # Charge une GT par frame (MoCA contient une boîte principale par image annotée).
     gt = {}
     with csv_path.open(newline="", encoding="utf-8") as f:
         rows = [r for r in csv.reader(f) if r and not r[0].startswith("#")]
@@ -70,6 +73,7 @@ def load_gt_from_moca(csv_path: Path, video: str = None) -> Dict[str, Dict[str, 
 
 
 def load_dets(dets_json: Path, video: str = None, max_det_per_frame: int = 1) -> Dict[str, List[Dict[str, float]]]:
+    # Lit le JSON de détections et garde au plus K boîtes par frame (triées par score).
     with dets_json.open("r", encoding="utf-8") as f:
         payload = json.load(f)
     dets = payload.get("detections", payload)
@@ -89,6 +93,7 @@ def flatten_predictions(
     dets_by_frame: Dict[str, List[Dict[str, float]]],
     gt_by_frame: Dict[str, Dict[str, float]],
 ) -> List[Tuple[str, Dict[str, float], float]]:
+    # Aplatit toutes les prédictions valides en une liste triée par score décroissant.
     preds = []
     for frame_key, dets in dets_by_frame.items():
         if frame_key not in gt_by_frame:
@@ -100,7 +105,7 @@ def flatten_predictions(
 
 
 def compute_ap(recalls: List[float], precisions: List[float]) -> float:
-    # VOC-style interpolation over all recall points
+    # AP par interpolation de type VOC sur la courbe précision-rappel.
     mrec = [0.0] + recalls + [1.0]
     mpre = [0.0] + precisions + [0.0]
 
@@ -120,6 +125,8 @@ def evaluate(
     iou_thr: float,
     score_thr: float,
 ):
+    # 1) Calcule la courbe PR globale (AP@IoU_thr).
+    # 2) Calcule un point opératoire au seuil de score fixé.
     preds = flatten_predictions(dets_by_frame, gt_by_frame)
     num_gt = len(gt_by_frame)
     matched = set()
@@ -150,7 +157,7 @@ def evaluate(
 
     ap50 = compute_ap(recalls, precisions) if scores else 0.0
 
-    # Single operating point at score threshold.
+    # Point opératoire unique au seuil de score demandé.
     matched_thr = set()
     tp_thr, fp_thr = 0, 0
     for frame_key, det, score in preds:

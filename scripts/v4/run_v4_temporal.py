@@ -6,6 +6,7 @@ from track_iou import build_tracks, tracks_to_jsonable
 
 
 def parse_args():
+    # Paramètres de tracking/agrégation pour passer de détections frame-level à des tracks.
     parser = argparse.ArgumentParser(description="Run IoU temporal tracking on OWL-ViT detections.")
     parser.add_argument("--dets-json", type=str, default="outputs/owlvit/dets_top1.json")
     parser.add_argument("--output-json", type=str, default="outputs/owlvit/tracks.json")
@@ -27,6 +28,7 @@ def main():
     with dets_path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
 
+    # Compatibilité: accepte soit {"detections": ...}, soit directement le mapping frame->dets.
     detections_by_frame = payload.get("detections", payload)
 
     tracks = build_tracks(

@@ -5,6 +5,7 @@ from typing import Dict, List
 
 
 def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
+    # IoU entre deux boîtes (x1, y1, x2, y2).
     x1 = max(a["x1"], b["x1"])
     y1 = max(a["y1"], b["y1"])
     x2 = min(a["x2"], b["x2"])
@@ -21,6 +22,7 @@ def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
 
 
 def parse_args():
+    # Raffinement temporel léger: sélection d'une boîte cohérente d'une frame à l'autre.
     parser = argparse.ArgumentParser(description="Temporal refinement for per-frame OWL-ViT detections.")
     parser.add_argument("--input-dets-json", type=str, required=True)
     parser.add_argument("--output-dets-json", type=str, required=True)
@@ -34,6 +36,7 @@ def parse_args():
 
 
 def det_compact_score(det: Dict[str, float], area_lambda: float) -> float:
+    # Score ajusté pour pénaliser les boîtes trop grandes.
     score = float(det.get("score", 0.0))
     area_ratio = float(det.get("box_area_ratio", 0.0))
     return score - area_lambda * area_ratio
@@ -48,6 +51,7 @@ def refine_video(
     min_score: float,
     keep_empty: bool,
 ) -> Dict[str, List[Dict[str, float]]]:
+    # Sélectionne 1 détection/frame en combinant score et cohérence IoU avec la frame précédente.
     out = {}
     prev_selected = None
 
@@ -63,6 +67,7 @@ def refine_video(
         if prev_selected is None:
             chosen = candidates[0]
         else:
+            # Critère temporel: score compact + bonus d'IoU avec la boîte précédente retenue.
             chosen = max(
                 candidates,
                 key=lambda d: det_compact_score(d, area_lambda) + iou_weight * iou_xyxy(prev_selected, d),
@@ -72,6 +77,7 @@ def refine_video(
         prev_selected = chosen
 
     if not keep_empty:
+        # Fallback optionnel: si une frame est vide après filtrage, garder le meilleur brut.
         for fk in frame_keys:
             if out.get(fk):
                 continue

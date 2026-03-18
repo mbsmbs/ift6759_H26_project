@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw
 
 
 def parse_args():
+    # Rend des boîtes de détection frame-level pour inspection visuelle rapide.
     parser = argparse.ArgumentParser(description="Visualize detections from dets.json on images.")
     parser.add_argument("--dets-json", type=str, default="outputs/owlvit/dets.json")
     parser.add_argument("--images-root", type=str, default="data/MoCA/JPEGImages")
@@ -26,6 +27,7 @@ def main():
     with dets_path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
 
+    # Récupère aussi les prompts pour afficher un label lisible.
     prompts = payload.get("meta", {}).get("prompts", [])
     detections = payload.get("detections", payload)
 
@@ -59,6 +61,7 @@ def main():
             label = f"{prompt_text} | s={score:.2f}"
 
             draw.rectangle([(x1, y1), (x2, y2)], outline="red", width=3)
+            # Fond coloré derrière le texte pour garder le label lisible.
             y_top = max(0, y1 - 16)
             y_bottom = max(y_top + 1, y1)
             x_left = max(0, x1)

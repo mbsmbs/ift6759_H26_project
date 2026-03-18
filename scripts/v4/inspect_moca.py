@@ -14,8 +14,8 @@ IMG_ROOT = ROOT / "JPEGImages"
 
 def parse_spatial_coordinates(s: str):
     """
-    VIA format: "[2,x,y,w,h]" where 2=rectangle
-    Returns (x, y, w, h) as floats.
+    Format VIA: "[2,x,y,w,h]" où 2 = rectangle.
+    Retourne (x, y, w, h) en float.
     """
     s = s.strip().strip('"')
     arr = json.loads(s)  # e.g. [2, 482.87, 225.391, 507.13, 191.739]
@@ -25,7 +25,7 @@ def parse_spatial_coordinates(s: str):
 
 def parse_motion(metadata_str: str):
     """
-    metadata: {"1":"0"} where attribute id 1 = motion
+    metadata: {"1":"0"} où l'attribut 1 correspond au mouvement.
     options: 0=locomotion, 1=subtle_motion, 2=still
     """
     metadata_str = metadata_str.strip().strip('"')
@@ -36,13 +36,14 @@ def parse_motion(metadata_str: str):
 
 
 def main(nth_row: int = 1):
+    # Sanity check: affiche une frame annotée avec sa boîte GT et son label de mouvement.
     with open(CSV_PATH, newline="") as f:
         reader = csv.reader(f)
-        # skip comment/header lines starting with '#'
+        # Ignore les lignes commentaire/header qui commencent par '#'.
         data_rows = [row for row in reader if row and not row[0].startswith("#")]
 
     row = data_rows[nth_row]
-    # columns: metadata_id, file_list, flags, temporal_coordinates, spatial_coordinates, metadata, ...
+    # Colonnes VIA: metadata_id, file_list, flags, temporal_coordinates, spatial_coordinates, metadata, ...
     file_list = row[1]                 # "/arabian_horn_viper/00000.jpg"
     spatial = row[4]                   # "[2,x,y,w,h]"
     metadata = row[5]                  # '{"1":"0"}'

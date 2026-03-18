@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 
 
 def parse_args():
+    # Rend les pistes temporelles (track_id) sur les frames de la vidéo.
     parser = argparse.ArgumentParser(description="Visualize temporal tracks on frames.")
     parser.add_argument("--tracks-json", type=str, default="outputs/owlvit/tracks_top1.json")
     parser.add_argument("--images-root", type=str, default="data/MoCA/JPEGImages")
@@ -27,6 +28,7 @@ def main():
     with tracks_path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
 
+    # Re-indexe les détections par frame pour dessiner image par image.
     frame_to_items = defaultdict(list)
     for track in payload.get("tracks", []):
         track_id = track.get("track_id", -1)
@@ -66,6 +68,7 @@ def main():
                 width=3,
             )
             label = f"track {item['track_id']} | s={item['score']:.2f}"
+            # Bandeau vert avec texte noir pour une lecture rapide.
             y_top = max(0, item["y1"] - 16)
             y_bottom = max(y_top + 1, item["y1"])
             x_left = max(0, item["x1"])
