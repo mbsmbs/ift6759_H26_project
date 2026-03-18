@@ -9,6 +9,9 @@ This folder contains the V4 implementation:
 
 ## Final frozen config
 Use `scripts/v4/V4_FINAL_CONFIG.json`.
+Current key values:
+- temporal `iou_weight = 0.05`
+- eval `IoU = 0.5`, `score_threshold = 0.1`, `max_det_per_frame = 1`
 
 ## 5-video set
 - `arabian_horn_viper`
@@ -38,7 +41,7 @@ for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; d
     --output-dets-json "outputs/owlvit/final/dets_top1_refined_${v}.json" \
     --video "$v" \
     --top-k 5 \
-    --iou-weight 0.35 \
+    --iou-weight 0.05 \
     --area-penalty-lambda 0.4 \
     --min-score 0.0
 done
@@ -49,7 +52,7 @@ done
 python - << 'PY'
 import json
 files = [
- 'outputs/owlvit/final/dets_top1_refined_full.json',
+ 'outputs/owlvit/final/dets_top1_refined_arabian_horn_viper.json',
  'outputs/owlvit/final/dets_top1_refined_arctic_fox.json',
  'outputs/owlvit/final/dets_top1_refined_arctic_fox_1.json',
  'outputs/owlvit/final/dets_top1_refined_arctic_fox_2.json',
@@ -86,7 +89,7 @@ python scripts/v4/eval_moca_batch.py \
   --dets-json outputs/owlvit/final/dets_top1_refined_5videos.json \
   --videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3 \
   --iou-threshold 0.5 \
-  --score-threshold 0.2 \
+  --score-threshold 0.1 \
   --max-det-per-frame 1 \
   --output-csv outputs/owlvit/final/eval_moca_batch_5videos.csv
 ```
@@ -114,6 +117,10 @@ done
 - `outputs/owlvit/final/dets_top1_refined_5videos.json`
 - `outputs/owlvit/final/tracks_top1_refined_5videos.json`
 - `outputs/owlvit/final/eval_moca_batch_5videos.csv`
-- `outputs/owlvit/final/eval_moca_batch_5videos_report.csv`
 - `outputs/owlvit/final/vis_dets_5videos/`
 - `outputs/owlvit/final/vis_tracks_5videos/`
+
+## Ablation note (macro, 5 videos, IoU=0.5, score=0.1)
+- `iou_weight=0.00` (compact only): AP50=0.7510, P=0.9175, R=0.7809, F1=0.8328
+- `iou_weight=0.05` (selected): AP50=0.7574, P=0.9196, R=0.7857, F1=0.8365
+- `iou_weight=0.35`: AP50=0.7329, P=0.8931, R=0.7643, F1=0.8133
