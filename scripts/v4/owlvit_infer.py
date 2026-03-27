@@ -30,6 +30,15 @@ def load_model(model_name: str, device: str):
     return processor, model
 
 
+def maybe_load_checkpoint(model: OwlViTForObjectDetection, checkpoint_path: str, device: str):
+    # Charge un checkpoint fine-tuned (torch.save dict avec model_state_dict).
+    if not checkpoint_path:
+        return
+    ckpt = torch.load(checkpoint_path, map_location=device)
+    state = ckpt.get("model_state_dict", ckpt)
+    model.load_state_dict(state, strict=True)
+
+
 @torch.no_grad()
 def predict_one(
     image_path: Path,
@@ -81,6 +90,7 @@ def parse_args():
     parser.add_argument("--video", required=True, type=str, help="Video folder name inside input root.")
     parser.add_argument("--output-json", default="outputs/owlvit/dets.json", type=str)
     parser.add_argument("--model-name", default="google/owlvit-base-patch32", type=str)
+    parser.add_argument("--checkpoint", default=None, type=str, help="Optional fine-tuned checkpoint (.pt).")
     parser.add_argument("--threshold", default=0.15, type=float)
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
     parser.add_argument("--max-frames", default=None, type=int)
@@ -129,6 +139,7 @@ def main():
         frame_paths = frame_paths[: args.max_frames]
 
     processor, model = load_model(args.model_name, device)
+    maybe_load_checkpoint(model=model, checkpoint_path=args.checkpoint, device=device)
 
     detections = {}
     total = len(frame_paths)
@@ -164,6 +175,7 @@ def main():
     payload = {
         "meta": {
             "model_name": args.model_name,
+            "checkpoint": args.checkpoint,
             "device": device,
             "threshold": args.threshold,
             "top_k_per_frame": args.top_k_per_frame,
