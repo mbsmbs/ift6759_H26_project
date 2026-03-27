@@ -1,126 +1,119 @@
-# V4 Pipeline (Reproducible)
+# V4 Pipeline (Baseline vs Fine-tuning)
 
-This folder contains the V4 implementation:
-- OWL-ViT frame-level inference
-- temporal refinement
-- IoU tracking
-- MoCA evaluation
-- visualizations
+Ce dossier est volontairement minimal pour le rapport/presentation:
+- inference OWL-ViT baseline
+- fine-tuning OWL-ViT
+- evaluation MoCA
 
-## Final frozen config
-Use `scripts/v4/V4_FINAL_CONFIG.json`.
-Current key values:
-- temporal `iou_weight = 0.05`
-- eval `IoU = 0.5`, `score_threshold = 0.1`, `max_det_per_frame = 1`
+Les anciens scripts non essentiels ont ete deplaces dans:
+- `scripts/v4/archive_unused/`
 
-## 5-video set
+## Fichiers a expliquer
+- `scripts/v4/owlvit_infer.py`
+- `scripts/v4/finetune_detector.py`
+- `scripts/v4/evaluate_v4.py`
+- `scripts/v4/V4_FINAL_CONFIG.json`
+
+## 5 videos MoCA
 - `arabian_horn_viper`
 - `arctic_fox`
 - `arctic_fox_1`
 - `arctic_fox_2`
 - `arctic_fox_3`
 
-## Run
+## Workflow minimum
 
-### 1) Inference (top-5 candidates per frame)
+### 1) Baseline (zero-shot)
 ```bash
 for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; do
   python scripts/v4/owlvit_infer.py \
     --video "$v" \
     --threshold 0.10 \
-    --top-k-per-frame 5 \
-    --output-json "outputs/owlvit/final/dets_top5_${v}.json"
+    --top-k-per-frame 1 \
+    --prompts "a camouflaged animal" "an animal hidden in background" \
+    --output-json "outputs/owlvit/final/baseline_dets_${v}.json"
 done
 ```
 
-### 2) Temporal refinement (1 detection/frame)
+### 2) Fine-tuning
+```bash
+python scripts/v4/finetune_detector.py \
+  --output-dir outputs/owlvit/finetune_detector_main \
+  --prompts "a camouflaged animal" "an animal hidden in background" \
+  --train-videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 \
+  --val-videos arctic_fox_3 \
+  --epochs 2 \
+  --batch-size 2 \
+  --lr 2e-6 \
+  --loss-cls-weight 1.0 \
+  --loss-box-weight 2.0 \
+  --loss-iou-weight 1.0 \
+  --freeze-text \
+  --best-metric f1
+```
+
+### 3) Inference fine-tuned + calibration threshold
 ```bash
 for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; do
-  python scripts/v4/refine_dets_temporal.py \
-    --input-dets-json "outputs/owlvit/final/dets_top5_${v}.json" \
-    --output-dets-json "outputs/owlvit/final/dets_top1_refined_${v}.json" \
+  python scripts/v4/owlvit_infer.py \
     --video "$v" \
-    --top-k 5 \
-    --iou-weight 0.05 \
-    --area-penalty-lambda 0.4 \
-    --min-score 0.0
+    --threshold 0.01 \
+    --top-k-per-frame 1 \
+    --checkpoint outputs/owlvit/finetune_detector_main/best_model.pt \
+    --prompts "a camouflaged animal" "an animal hidden in background" \
+    --output-json "outputs/owlvit/final/ft_dets_${v}.json"
 done
 ```
 
-### 3) Merge refined detections
+### 4) Evaluation (un seul script)
+Fusion des detections (5 videos) puis evaluation:
 ```bash
 python - << 'PY'
 import json
-files = [
- 'outputs/owlvit/final/dets_top1_refined_arabian_horn_viper.json',
- 'outputs/owlvit/final/dets_top1_refined_arctic_fox.json',
- 'outputs/owlvit/final/dets_top1_refined_arctic_fox_1.json',
- 'outputs/owlvit/final/dets_top1_refined_arctic_fox_2.json',
- 'outputs/owlvit/final/dets_top1_refined_arctic_fox_3.json',
-]
-out = 'outputs/owlvit/final/dets_top1_refined_5videos.json'
-merged = {'meta': {'sources': files}, 'detections': {}}
-for p in files:
-    with open(p, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    merged['detections'].update(data.get('detections', data))
-with open(out, 'w', encoding='utf-8') as f:
+from pathlib import Path
+videos = ["arabian_horn_viper","arctic_fox","arctic_fox_1","arctic_fox_2","arctic_fox_3"]
+merged = {"meta": {}, "detections": {}}
+for i, v in enumerate(videos):
+    p = Path(f"outputs/owlvit/final/ft_dets_{v}.json")
+    with p.open("r", encoding="utf-8") as f:
+        obj = json.load(f)
+    if i == 0:
+        merged["meta"] = obj.get("meta", {})
+    merged["detections"].update(obj.get("detections", {}))
+out = Path("outputs/owlvit/final/ft_dets_5videos.json")
+with out.open("w", encoding="utf-8") as f:
     json.dump(merged, f, indent=2)
-print('wrote', out, 'frames', len(merged['detections']))
+print(out)
 PY
-```
 
-### 4) Tracking
-```bash
-python scripts/v4/run_v4_temporal.py \
-  --dets-json outputs/owlvit/final/dets_top1_refined_5videos.json \
-  --output-json outputs/owlvit/final/tracks_top1_refined_5videos.json \
-  --iou-threshold 0.3 \
-  --score-threshold 0.0 \
-  --max-gap 1 \
-  --min-track-len 1 \
-  --agg max \
-  --window 5
-```
-
-### 5) Evaluation
-```bash
-python scripts/v4/eval_moca_batch.py \
-  --dets-json outputs/owlvit/final/dets_top1_refined_5videos.json \
+python scripts/v4/evaluate_v4.py batch \
+  --dets-json outputs/owlvit/final/ft_dets_5videos.json \
   --videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3 \
   --iou-threshold 0.5 \
-  --score-threshold 0.1 \
+  --score-threshold 0.08 \
   --max-det-per-frame 1 \
-  --output-csv outputs/owlvit/final/eval_moca_batch_5videos.csv
+  --out-csv outputs/owlvit/final/ft_eval_moca_batch_5videos_s008.csv
 ```
 
-### 6) Visualizations
+### 5) Sweep de calibration (meme script)
 ```bash
-for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; do
-  python scripts/v4/visualize_dets.py \
-    --dets-json outputs/owlvit/final/dets_top1_refined_5videos.json \
-    --video "$v" \
-    --output-dir outputs/owlvit/final/vis_dets_5videos \
-    --max-frames 100000 \
-    --min-score 0.0
-
-  python scripts/v4/visualize_tracks.py \
-    --tracks-json outputs/owlvit/final/tracks_top1_refined_5videos.json \
-    --video "$v" \
-    --output-dir outputs/owlvit/final/vis_tracks_5videos \
-    --max-frames 100000 \
-    --min-score 0.0
-done
+python scripts/v4/evaluate_v4.py sweep \
+  --dets-json outputs/owlvit/final/ft_dets_5videos.json \
+  --videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3 \
+  --iou-thresholds 0.5 \
+  --score-thresholds 0.01,0.03,0.05,0.08,0.10 \
+  --max-det-per-frame-list 1 \
+  --out-grid-csv outputs/owlvit/final/ft_eval_sweep_grid.csv \
+  --out-best-csv outputs/owlvit/final/ft_eval_sweep_best.csv
 ```
 
-## Final artifacts
-- `outputs/owlvit/final/dets_top1_refined_5videos.json`
-- `outputs/owlvit/final/tracks_top1_refined_5videos.json`
-- `outputs/owlvit/final/eval_moca_batch_5videos.csv`
-- `outputs/owlvit/final/vis_dets_5videos/`
-- `outputs/owlvit/final/vis_tracks_5videos/`
-
-## Ablation note (macro, 5 videos, IoU=0.5, score=0.1)
-- `iou_weight=0.00` (compact only): AP50=0.7510, P=0.9175, R=0.7809, F1=0.8328
-- `iou_weight=0.05` (selected): AP50=0.7574, P=0.9196, R=0.7857, F1=0.8365
-- `iou_weight=0.35`: AP50=0.7329, P=0.8931, R=0.7643, F1=0.8133
+### 6) Comparaison baseline vs fine-tuned (meme script)
+```bash
+python scripts/v4/evaluate_v4.py master \
+  --videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3 \
+  --iou-threshold 0.5 \
+  --max-det-per-frame 1 \
+  --version "baseline|outputs/owlvit/final/dets_top1_refined_5videos.json|0.10|zero-shot refined" \
+  --version "finetuned|outputs/owlvit/final/ft_f1sel_dets_top1_5videos.json|0.08|best-metric=f1 + threshold optimized" \
+  --out-master-csv outputs/owlvit/final/v4_eval_master.csv
+```
