@@ -1,20 +1,14 @@
 # V4 Pipeline (Baseline vs Fine-tuning)
 
-Ce dossier est volontairement minimal pour le rapport/presentation:
-- inference OWL-ViT baseline
-- fine-tuning OWL-ViT
-- evaluation MoCA
+## Fichiers de code V4
 
-Les anciens scripts non essentiels ont ete deplaces dans:
-- `scripts/v4/archive_unused/`
-
-## Fichiers a expliquer
 - `scripts/v4/owlvit_infer.py`
 - `scripts/v4/finetune_detector.py`
 - `scripts/v4/evaluate_v4.py`
 - `scripts/v4/V4_FINAL_CONFIG.json`
 
 ## 5 videos MoCA
+
 - `arabian_horn_viper`
 - `arctic_fox`
 - `arctic_fox_1`
@@ -24,6 +18,7 @@ Les anciens scripts non essentiels ont ete deplaces dans:
 ## Workflow minimum
 
 ### 1) Baseline (zero-shot)
+
 ```bash
 for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; do
   python scripts/v4/owlvit_infer.py \
@@ -36,6 +31,7 @@ done
 ```
 
 ### 2) Fine-tuning
+
 ```bash
 python scripts/v4/finetune_detector.py \
   --output-dir outputs/owlvit/finetune_detector_main \
@@ -53,6 +49,7 @@ python scripts/v4/finetune_detector.py \
 ```
 
 ### 3) Inference fine-tuned + calibration threshold
+
 ```bash
 for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; do
   python scripts/v4/owlvit_infer.py \
@@ -66,7 +63,9 @@ done
 ```
 
 ### 4) Evaluation (un seul script)
+
 Fusion des detections (5 videos) puis evaluation:
+
 ```bash
 python - << 'PY'
 import json
@@ -96,6 +95,7 @@ python scripts/v4/evaluate_v4.py batch \
 ```
 
 ### 5) Sweep de calibration (meme script)
+
 ```bash
 python scripts/v4/evaluate_v4.py sweep \
   --dets-json outputs/owlvit/final/ft_dets_5videos.json \
@@ -108,6 +108,7 @@ python scripts/v4/evaluate_v4.py sweep \
 ```
 
 ### 6) Comparaison baseline vs fine-tuned (meme script)
+
 ```bash
 python scripts/v4/evaluate_v4.py master \
   --videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3 \
