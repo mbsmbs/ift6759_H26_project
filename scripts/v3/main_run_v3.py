@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Sequence
 
 import cv2
-import configD_dev as config
+import configE_dev as config
 
 from motion_proposals import Proposal, add_full_frame_fallback, generate_motion_proposals
 from clip_rerank import CLIPReranker, crop_xyxy_from_bgr
@@ -84,14 +84,7 @@ def normalize_motion_scores(proposals: Sequence[Proposal]) -> List[float]:
     if not proposals:
         return []
 
-    raw = [float(p.motion_score) for p in proposals]
-    mn = min(raw)
-    mx = max(raw)
-
-    if mx - mn < 1e-8:
-        return [1.0 for _ in raw]
-
-    return [(x - mn) / (mx - mn) for x in raw]
+    return [min(float(p.motion_score) / 50.0, 1.0) for p in proposals]
 
 
 def build_detection_record(

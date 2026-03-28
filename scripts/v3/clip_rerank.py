@@ -88,7 +88,7 @@ class CLIPReranker:
             text_features = text_features / text_features.norm(dim=-1, keepdim=True)
 
             logits = 100.0 * image_features @ text_features.T
-            scores = logits.softmax(dim=-1).detach().cpu().numpy().astype(np.float32)
+            scores = (image_features @ text_features.T).detach().cpu().numpy().astype(np.float32)
             return scores
 
         if self.backend == "transformers":
@@ -102,7 +102,7 @@ class CLIPReranker:
             outputs = self.model(**inputs)
 
             logits = outputs.logits_per_image
-            scores = logits.softmax(dim=-1).detach().cpu().numpy().astype(np.float32)
+            scores = (image_features @ text_features.T).detach().cpu().numpy().astype(np.float32)
             return scores
 
         raise RuntimeError("Unknown CLIP backend.")
