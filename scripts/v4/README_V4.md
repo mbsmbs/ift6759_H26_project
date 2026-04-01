@@ -62,9 +62,7 @@ for v in arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3; d
 done
 ```
 
-### 4) Evaluation (un seul script)
-
-Fusion des detections (5 videos) puis evaluation:
+### 4) Preparation des detections fine-tuned (fusion 5 videos)
 
 ```bash
 python - << 'PY'
@@ -85,13 +83,6 @@ with out.open("w", encoding="utf-8") as f:
 print(out)
 PY
 
-python scripts/v4/evaluate_v4.py batch \
-  --dets-json outputs/owlvit/final/ft_dets_5videos.json \
-  --videos arabian_horn_viper arctic_fox arctic_fox_1 arctic_fox_2 arctic_fox_3 \
-  --iou-threshold 0.5 \
-  --score-threshold 0.08 \
-  --max-det-per-frame 1 \
-  --out-csv outputs/owlvit/final/ft_eval_moca_batch_5videos_s008.csv
 ```
 
 ### 5) Sweep de calibration (meme script)
