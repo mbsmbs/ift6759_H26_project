@@ -170,6 +170,7 @@ def main():
             # Mécanisme de secours: évite les frames totalement vides.
             frame_dets = [original_frame_dets[0]]
         if args.top_k_per_frame is not None and args.top_k_per_frame >= 0:
+            # Garde seulement les top-K detections par frame apres filtrage.
             frame_dets = frame_dets[: args.top_k_per_frame]
         detections[key] = frame_dets
         if idx % 20 == 0 or idx == total:

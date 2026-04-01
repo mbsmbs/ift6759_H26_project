@@ -340,26 +340,31 @@ def count_params(model: torch.nn.Module) -> Tuple[int, int]:
 
 
 def main():
+    # Parse les arguments de CLI
     args = parse_args()
     set_seed(args.seed)
 
+    # Preparer inputs et outputs
     annotations_csv = Path(args.annotations_csv)
     images_root = Path(args.images_root)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Chager modele OWL-ViT + processor -> device
     device = select_device(args.device)
     processor = OwlViTProcessor.from_pretrained(args.model_name)
     model = OwlViTForObjectDetection.from_pretrained(args.model_name)
     maybe_freeze(model, freeze_text=args.freeze_text, freeze_vision=args.freeze_vision)
     model.to(device)
 
+    # Afficher le nombre de paramètres total et entrainable & les videos utilisees pour le train/val
     total_params, trainable_params = count_params(model)
     print(f"device={device}")
     print(f"params total={total_params:,} trainable={trainable_params:,}")
     print(f"train_videos={args.train_videos}")
     print(f"val_videos={args.val_videos}")
 
+    # Charger les annotations MoCA -> filtrer par video -> creer des echantillons -> dataset trie
     rows = load_moca_rows(annotations_csv)
     train_samples = build_samples(rows, images_root=images_root, videos=args.train_videos)
     val_samples = build_samples(rows, images_root=images_root, videos=args.val_videos)
@@ -367,6 +372,7 @@ def main():
     if len(train_samples) == 0 or len(val_samples) == 0:
         raise RuntimeError("train/val vide. Vérifier les chemins et la liste de vidéos.")
 
+    # DataLoader avec collate personnalise pour preparer les batches d'entraînement
     ds_train = MoCADetectionDataset(train_samples)
     dl_train = DataLoader(
         ds_train,
@@ -376,18 +382,22 @@ def main():
         collate_fn=identity_collate,
     )
 
+    # Optimizer sur les parametres entrainables du modele
     optim_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(optim_params, lr=args.lr, weight_decay=args.weight_decay)
 
+    # Boucle d'entraînement + validation + sauvegarde des checkpoints
     history = []
     best_score = -1.0
     best_ckpt = out_dir / "best_model.pt"
     best_epoch = -1
 
+    # Loop d'entraînement sur les epochs
     for epoch in range(1, args.epochs + 1):
         model.train()
         batch_losses = []
         batch_iou = []
+        
         for batch in dl_train:
             inputs, gt_boxes = collate_train(batch, processor=processor, prompts=args.prompts, device=device)
             outputs = model(**inputs)
@@ -464,6 +474,7 @@ def main():
                 out_dir / f"checkpoint_epoch_{epoch:02d}.pt",
             )
 
+    # Recapitulatif final + sauvegarde du resume de l'entraînement
     summary = {
         "model_name": args.model_name,
         "prompts": args.prompts,
