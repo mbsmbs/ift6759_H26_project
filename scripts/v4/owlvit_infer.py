@@ -20,25 +20,23 @@ DEFAULT_PROMPTS = [
     "an animal hidden in sand",
 ]
 
-
+# Charge le modele OWL-ViT et son processor associe sur le device specifie (GPU/CPU).
 def load_model(model_name: str, device: str):
-    # Charge OWL-ViT une seule fois pour éviter le surcoût par frame.
     processor = OwlViTProcessor.from_pretrained(model_name)
     model = OwlViTForObjectDetection.from_pretrained(model_name)
     model.to(device)
     model.eval()
     return processor, model
 
-
+# Si un checkpoint fine-tuned est fourni, charge les poids dans le modele OWL-ViT.
 def maybe_load_checkpoint(model: OwlViTForObjectDetection, checkpoint_path: str, device: str):
-    # Charge un checkpoint fine-tuned (torch.save dict avec model_state_dict).
     if not checkpoint_path:
         return
     ckpt = torch.load(checkpoint_path, map_location=device)
     state = ckpt.get("model_state_dict", ckpt)
     model.load_state_dict(state, strict=True)
 
-
+# Inference sur une image: boites + score + prompt_id + ratio de surface.
 @torch.no_grad()
 def predict_one(
     image_path: Path,
@@ -82,9 +80,8 @@ def predict_one(
         )
     return detections
 
-
+# Parse les arguments de la ligne de commande pour l'inference batch OWL-ViT sur les frames de MoCA.
 def parse_args():
-    # Paramètres d'inférence batch et de filtrage simple des boîtes.
     parser = argparse.ArgumentParser(description="OWL-ViT batch inference on MoCA frames.")
     parser.add_argument("--input-root", default="data/MoCA/JPEGImages", type=str)
     parser.add_argument("--video", required=True, type=str, help="Video folder name inside input root.")
@@ -122,29 +119,35 @@ def parse_args():
 
 
 def main():
+    # Parse args
     args = parse_args()
 
+    # Determine device (GPU/CPU)
     device = args.device
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # Utilise les prompts par defaut si aucun n'est fourni via les arguments.
     prompts = args.prompts if args.prompts else DEFAULT_PROMPTS
     input_root = Path(args.input_root)
     video_dir = input_root / args.video
     if not video_dir.is_dir():
         raise FileNotFoundError(f"Video folder not found: {video_dir}")
 
+    # Liste et trie les frames d'entree. Limite a max_frames si specifie.
     frame_paths = sorted(video_dir.glob("*.jpg"))
     if args.max_frames is not None:
         frame_paths = frame_paths[: args.max_frames]
 
+    # Charge le modele et le processor une seule fois pour toute l'inference batch.
     processor, model = load_model(args.model_name, device)
     maybe_load_checkpoint(model=model, checkpoint_path=args.checkpoint, device=device)
 
+    # Infere sur chaque frame et collecte les detections dans un dict organise par "video/frame.jpg".
     detections = {}
     total = len(frame_paths)
     for idx, frame_path in enumerate(frame_paths, start=1):
-        # Clé normalisée attendue par les autres scripts: "video/frame.jpg".
+        # Cle normalisee attendue par les autres scripts: "video/frame.jpg".
         key = frame_path.relative_to(input_root).as_posix()
         frame_dets = predict_one(
             image_path=frame_path,
@@ -172,6 +175,7 @@ def main():
         if idx % 20 == 0 or idx == total:
             print(f"[{idx}/{total}] processed {key}")
 
+    # Structure du JSON de sortie: metadonnees + detections par frame.
     payload = {
         "meta": {
             "model_name": args.model_name,
@@ -190,6 +194,7 @@ def main():
         "detections": detections,
     }
 
+    # Sauvegarde les detections dans un fichier JSON structure.
     out_path = Path(args.output_json)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
