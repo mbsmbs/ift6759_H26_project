@@ -19,13 +19,12 @@ from transformers import OwlViTForObjectDetection, OwlViTProcessor
 
 from eval_moca_detection import evaluate as eval_det
 
-
+# Sample = 1 image + its path + its bounding box
 @dataclass
 class Sample:
     frame_key: str
     image_path: Path
     gt_xyxy: Dict[str, float]
-
 
 class MoCADetectionDataset(Dataset):
     # Dataset simple: une image + une boîte GT par frame.
@@ -89,7 +88,7 @@ def parse_args():
     )
     return parser.parse_args()
 
-
+# For reproducibility
 def set_seed(seed: int):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -109,7 +108,7 @@ def select_device(device_arg: str) -> torch.device:
         return torch.device("mps")
     return torch.device("cpu")
 
-
+# Reads MoCA csv -> extracts + video +bounding box -> returns a list of annotations
 def load_moca_rows(annotations_csv: Path) -> List[dict]:
     rows = []
     with annotations_csv.open(newline="", encoding="utf-8") as f:
@@ -131,7 +130,7 @@ def load_moca_rows(annotations_csv: Path) -> List[dict]:
             )
     return rows
 
-
+# Filter rows -> load valid images -> create samples -> return sorted dataset
 def build_samples(rows: List[dict], images_root: Path, videos: List[str]) -> List[Sample]:
     keep = set(videos)
     out = []
@@ -144,7 +143,7 @@ def build_samples(rows: List[dict], images_root: Path, videos: List[str]) -> Lis
         out.append(Sample(frame_key=r["frame_key"], image_path=image_path, gt_xyxy=r["gt_xyxy"]))
     return sorted(out, key=lambda s: s.frame_key)
 
-
+# Converts box from (corners) -> (center + size) and scales it to [0, 1]
 def xyxy_to_cxcywh_norm(box: Dict[str, float], w: int, h: int) -> List[float]:
     x1, y1, x2, y2 = box["x1"], box["y1"], box["x2"], box["y2"]
     cx = ((x1 + x2) / 2.0) / max(1.0, float(w))
@@ -159,7 +158,7 @@ def xyxy_to_cxcywh_norm(box: Dict[str, float], w: int, h: int) -> List[float]:
         float(max(0.0, min(1.0, bh))),
     ]
 
-
+# Transforms a batch -> model inputs + normalized boxes for training
 def collate_train(batch, processor: OwlViTProcessor, prompts: List[str], device: torch.device):
     images = [b["image"] for b in batch]
     inputs = processor(text=[prompts] * len(images), images=images, return_tensors="pt", padding=True)
@@ -173,7 +172,7 @@ def collate_train(batch, processor: OwlViTProcessor, prompts: List[str], device:
     gt_boxes = torch.tensor(gt_boxes, dtype=torch.float32, device=device)  # [B,4] cxcywh norm
     return inputs, gt_boxes
 
-
+# Converts box from (center format) -> (corner format)
 def cxcywh_to_xyxy(boxes: torch.Tensor) -> torch.Tensor:
     # Convertit des boîtes normalisées cxcywh -> xyxy.
     cx, cy, w, h = boxes.unbind(dim=-1)
@@ -183,7 +182,8 @@ def cxcywh_to_xyxy(boxes: torch.Tensor) -> torch.Tensor:
     y2 = cy + 0.5 * h
     return torch.stack([x1, y1, x2, y2], dim=-1)
 
-
+# Measures how well each predicted box overlaps with the ground truth box
+# 1.0 -> perfect match, 0.5 -> decent match, 0.0 -> no overlap 
 def box_iou_one_to_many(gt_xyxy: torch.Tensor, pred_xyxy: torch.Tensor) -> torch.Tensor:
     # gt_xyxy: [B,4], pred_xyxy: [B,Q,4] -> IoU [B,Q]
     gx1, gy1, gx2, gy2 = gt_xyxy[:, 0:1], gt_xyxy[:, 1:2], gt_xyxy[:, 2:3], gt_xyxy[:, 3:4]
@@ -211,25 +211,36 @@ def compute_train_loss(outputs, gt_boxes_cxcywh: torch.Tensor, cls_w: float, box
     # - cls: BCE sur logits (requête assignée = positive, autres = négatives)
     # - box: L1 sur la boîte assignée
     # - iou: 1 - IoU(assignée, GT)
+
+    # 1. Get predicted boxes and logits
     pred_boxes = outputs.pred_boxes  # [B,Q,4] cxcywh norm
     logits = outputs.logits.squeeze(-1)  # [B,Q] pour 1 prompt
 
+    # 2. Convert boxes to xyxy format
     gt_xyxy = cxcywh_to_xyxy(gt_boxes_cxcywh)  # [B,4]
     pred_xyxy = cxcywh_to_xyxy(pred_boxes)  # [B,Q,4]
+    # 3. Compute IoU between GT and all predictions boxes
     ious = box_iou_one_to_many(gt_xyxy, pred_xyxy)  # [B,Q]
     best_idx = ious.argmax(dim=1)  # [B]
 
+    # 4. Select the best predicted box and its IoU
     b_idx = torch.arange(pred_boxes.size(0), device=pred_boxes.device)
     best_boxes = pred_boxes[b_idx, best_idx]  # [B,4]
     best_ious = ious[b_idx, best_idx]  # [B]
 
+    # 5. Build classification targets
     targets = torch.zeros_like(logits)
     targets[b_idx, best_idx] = 1.0
+    # 6. Classification loss
     cls_loss = torch.nn.functional.binary_cross_entropy_with_logits(logits, targets)
+    # 7. Box regression loss
     box_loss = torch.nn.functional.l1_loss(best_boxes, gt_boxes_cxcywh)
+    # 8. IoU loss
     iou_loss = 1.0 - best_ious.mean()
 
+    # 9. Total loss for backprop
     total = cls_w * cls_loss + box_w * box_loss + iou_w * iou_loss
+    # 10. Logging values
     parts = {
         "loss_total": float(total.item()),
         "loss_cls": float(cls_loss.item()),
@@ -252,19 +263,25 @@ def validate_model(
 ) -> Dict[str, float]:
     # Validation en mode "detection": AP/F1 via les métriques déjà utilisées dans le projet.
     model.eval()
+    # Sekect validation subset
     subset = val_samples[:max_samples] if max_samples is not None and max_samples > 0 else val_samples
 
     dets_by_frame = {}
     gt_by_frame = {}
     for s in subset:
+        # 1. load image
         image = Image.open(s.image_path).convert("RGB")
+        # 2. Store ground truth
         gt_by_frame[s.frame_key] = s.gt_xyxy
 
+        # 3. Prepare model inputs
         inputs = processor(text=[prompts], images=image, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
+        # 4. Run model
         outputs = model(**inputs)
 
         target_sizes = torch.tensor([image.size[::-1]], device=device)
+        # 5. Convert predictions into real detection boxes
         results = processor.post_process_object_detection(
             outputs=outputs,
             threshold=score_threshold,
@@ -272,6 +289,7 @@ def validate_model(
         )[0]
 
         frame_dets = []
+        # 6. Build detection list
         for box, score, label in zip(results["boxes"], results["scores"], results["labels"]):
             x1, y1, x2, y2 = box.tolist()
             frame_dets.append(
@@ -285,14 +303,17 @@ def validate_model(
                     "class_id": 0,
                 }
             )
+        # 7. Keep only the best detection
         dets_by_frame[s.frame_key] = sorted(frame_dets, key=lambda d: d["score"], reverse=True)[:1]
 
+    # 8. Final evaluation
     res = eval_det(
         gt_by_frame=gt_by_frame,
         dets_by_frame=dets_by_frame,
         iou_thr=0.5,
         score_thr=score_threshold,
     )
+    # 9. Metrics
     return {
         "val_ap50": float(res["ap50"]),
         "val_precision": float(res["op_precision"]),
@@ -301,7 +322,7 @@ def validate_model(
         "val_num_frames": int(res["num_gt_frames"]),
     }
 
-
+# Controls which parts of the model learn during training
 def maybe_freeze(model: OwlViTForObjectDetection, freeze_text: bool, freeze_vision: bool):
     if not freeze_text and not freeze_vision:
         return
@@ -311,7 +332,7 @@ def maybe_freeze(model: OwlViTForObjectDetection, freeze_text: bool, freeze_visi
         if freeze_vision and ("vision_model" in name):
             p.requires_grad = False
 
-
+# Counts total parameters and how many are trainable
 def count_params(model: torch.nn.Module) -> Tuple[int, int]:
     total = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
