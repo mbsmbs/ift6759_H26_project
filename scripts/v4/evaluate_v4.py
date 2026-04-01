@@ -414,9 +414,9 @@ def main():
     # 1. Parse args
     args = build_parser().parse_args()
     # 2. Dispatch to mode
-    if args.mode == "sweep":
+    if args.mode == "sweep": # quel est le meilleur seuil pour ce modele?
         run_sweep(args)
-    elif args.mode == "master":
+    elif args.mode == "master": # quelle version est la meilleure?
         run_master(args)
     else:
         raise ValueError(f"Unsupported mode: {args.mode}")
