@@ -13,7 +13,7 @@ def parse_float_list(raw: str) -> List[float]:
 def parse_int_list(raw: str) -> List[int]:
     return [int(x.strip()) for x in raw.split(",") if x.strip()]
 
-
+# Calcule le IoU entre 2 bounding boxes a et b
 def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
     x1 = max(a["x1"], b["x1"])
     y1 = max(a["y1"], b["y1"])
@@ -27,16 +27,22 @@ def iou_xyxy(a: Dict[str, float], b: Dict[str, float]) -> float:
 
     area_a = max(0.0, a["x2"] - a["x1"]) * max(0.0, a["y2"] - a["y1"])
     area_b = max(0.0, b["x2"] - b["x1"]) * max(0.0, b["y2"] - b["y1"])
-    denom = area_a + area_b - inter
+    denom = area_a + area_b - inter # Union
     return 0.0 if denom <= 0 else inter / denom
 
-
+# Charger GT depuis MoCA -> Dict de bounding boxes
 def load_gt_from_moca(csv_path: Path, video: str = None) -> Dict[str, Dict[str, float]]:
+    '''
+        - lit les annotaions
+        - filtre les bonnes lignes
+        - convertit les boxes
+        - retourne un dictionnaire pret pour l'evaluation
+    '''
     gt = {}
     with csv_path.open(newline="", encoding="utf-8") as f:
         rows = [r for r in csv.reader(f) if r and not r[0].startswith("#")]
     for row in rows:
-        file_key = row[1].lstrip("/")
+        file_key = row[1].lstrip("/") # nom de l'image
         if video and not file_key.startswith(f"{video}/"):
             continue
         spatial = json.loads(row[4])  # [2, x, y, w, h]
@@ -46,7 +52,7 @@ def load_gt_from_moca(csv_path: Path, video: str = None) -> Dict[str, Dict[str, 
         gt[file_key] = {"x1": x, "y1": y, "x2": x + w, "y2": y + h}
     return gt
 
-
+# Charger les detections depuis un JSON -> prepare les donnees pour l'evaluation
 def load_dets(dets_json: Path, video: str = None, max_det_per_frame: int = 1) -> Dict[str, List[Dict[str, float]]]:
     with dets_json.open("r", encoding="utf-8") as f:
         payload = json.load(f)
@@ -62,11 +68,16 @@ def load_dets(dets_json: Path, video: str = None, max_det_per_frame: int = 1) ->
         out[frame_key] = ranked
     return out
 
-
+# Mettre les predictions dans une seule liste triee par score
 def flatten_predictions(
     dets_by_frame: Dict[str, List[Dict[str, float]]],
     gt_by_frame: Dict[str, Dict[str, float]],
 ) -> List[Tuple[str, Dict[str, float], float]]:
+    '''
+        - Fusionne toutes les predictions
+        - filtre celles sans GT
+        - trie par score
+    '''
     preds = []
     for frame_key, dets in dets_by_frame.items():
         if frame_key not in gt_by_frame:
@@ -76,12 +87,15 @@ def flatten_predictions(
     preds.sort(key=lambda x: x[2], reverse=True)
     return preds
 
-
+# Calcule AP : Aire sous la courbe Precision-Recall
 def compute_ap(recalls: List[float], precisions: List[float]) -> float:
+    # Construire les bornes
     mrec = [0.0] + recalls + [1.0]
     mpre = [0.0] + precisions + [0.0]
+    # Rendre la courbe de precision monotone decroissante
     for i in range(len(mpre) - 2, -1, -1):
         mpre[i] = max(mpre[i], mpre[i + 1])
+    # Calculer l'aire sous la courbe
     ap = 0.0
     for i in range(1, len(mrec)):
         if mrec[i] != mrec[i - 1]:
@@ -95,11 +109,13 @@ def evaluate_one(
     iou_thr: float,
     score_thr: float,
 ) -> Dict[str, float]:
+    
     preds = flatten_predictions(dets_by_frame, gt_by_frame)
     num_gt = len(gt_by_frame)
     matched = set()
     tps, fps, scores = [], [], []
 
+    # Distinguer TP/FP pour chaque prediction
     for frame_key, det, score in preds:
         gt = gt_by_frame[frame_key]
         iou = iou_xyxy(gt, det)
@@ -115,6 +131,7 @@ def evaluate_one(
 
     cum_tp, cum_fp = 0, 0
     recalls, precisions = [], []
+    # Parcourir les predictions -> calculer les courbes Precision-Recall
     for tp, fp in zip(tps, fps):
         cum_tp += tp
         cum_fp += fp
@@ -123,10 +140,12 @@ def evaluate_one(
         recalls.append(rec)
         precisions.append(prec)
 
+    # Calculer AP
     ap50 = compute_ap(recalls, precisions) if scores else 0.0
 
     matched_thr = set()
     tp_thr, fp_thr = 0, 0
+    # Re-evaluer TP/FP avec les seuils fixes (score_thr, iou_thr)
     for frame_key, det, score in preds:
         if score < score_thr:
             continue
@@ -139,11 +158,13 @@ def evaluate_one(
         else:
             fp_thr += 1
 
+    # Calculer FN, Precision, Recall, F1 pour les seuils fixes
     fn_thr = num_gt - tp_thr
     precision_thr = tp_thr / max(1, (tp_thr + fp_thr))
     recall_thr = tp_thr / num_gt if num_gt > 0 else 0.0
     f1_thr = (2 * precision_thr * recall_thr / (precision_thr + recall_thr)) if (precision_thr + recall_thr) > 0 else 0.0
 
+    # Retourner tous les metrics
     return {
         "num_gt_frames": num_gt,
         "num_predictions_considered": len(scores),
@@ -158,12 +179,12 @@ def evaluate_one(
         "op_f1": f1_thr,
     }
 
-
+# Trouver les videos uniques dans les annotations pour evaluation
 def discover_videos(annotations_csv: Path) -> List[str]:
     gt_all = load_gt_from_moca(annotations_csv, video=None)
     return sorted({k.split("/", 1)[0] for k in gt_all.keys()})
 
-
+# Evaluer une detections json sur plusieurs videos -> retourner les metrics par video + macro
 def evaluate_batch(
     dets_json: Path,
     annotations_csv: Path,
@@ -173,11 +194,13 @@ def evaluate_batch(
     max_det_per_frame: int,
 ) -> Tuple[List[Dict], Dict]:
     rows = []
+    # Evaluer chaque video independamment -> calculer les metrics par video
     for video in videos:
         gt = load_gt_from_moca(annotations_csv, video=video)
         dets = load_dets(dets_json, video=video, max_det_per_frame=max_det_per_frame)
         r = evaluate_one(gt, dets, iou_thr=iou_thr, score_thr=score_thr)
         rows.append({"video": video, **r})
+    # Calculer les metrics macro (moyenne sur les videos)
     macro = {
         "video": "MACRO",
         "num_videos": len(rows),
@@ -188,57 +211,22 @@ def evaluate_batch(
     }
     return rows, macro
 
-
-def run_batch(args):
-    annotations_csv = Path(args.annotations_csv)
-    videos = args.videos if args.videos else discover_videos(annotations_csv)
-    rows, macro = evaluate_batch(
-        dets_json=Path(args.dets_json),
-        annotations_csv=annotations_csv,
-        videos=videos,
-        iou_thr=args.iou_threshold,
-        score_thr=args.score_threshold,
-        max_det_per_frame=args.max_det_per_frame,
-    )
-    out_csv = Path(args.out_csv)
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
-    fields = [
-        "video",
-        "num_gt_frames",
-        "num_predictions_considered",
-        "ap50",
-        "op_score_threshold",
-        "op_iou_threshold",
-        "op_tp",
-        "op_fp",
-        "op_fn",
-        "op_precision",
-        "op_recall",
-        "op_f1",
-    ]
-    with out_csv.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fields)
-        w.writeheader()
-        w.writerows(rows)
-    print(
-        f"Macro over {macro['num_videos']} videos: AP50={macro['ap50']:.4f} "
-        f"P={macro['precision']:.4f} R={macro['recall']:.4f} F1={macro['f1']:.4f}"
-    )
-    print(f"Wrote CSV: {out_csv}")
-
-
+# Tester plusieurs parametres (IoU, score threshold, max det per frame) -> ecrire les resultats par video + macro dans un CSV + trouver la meilleure combinaison par F1 et AP50
 def run_sweep(args):
+    # 1. Read inputs
     dets_json = Path(args.dets_json)
     annotations_csv = Path(args.annotations_csv)
     videos = args.videos if args.videos else discover_videos(annotations_csv)
+    # 2. List of parameters
     ious = parse_float_list(args.iou_thresholds)
     scores = parse_float_list(args.score_thresholds)
     ks = parse_int_list(args.max_det_per_frame_list)
 
+    # 3. Try multiple combination
     grid_rows = []
     macro_rows = []
-    for iou_thr in ious:
-        for score_thr in scores:
+    for iou_thr in ious: # higher IoU -> stricter, lower IoU -> easier
+        for score_thr in scores: # higher -> fewer, more confident detections, lower -> more detections, possibly more false positives
             for k in ks:
                 rows, macro = evaluate_batch(
                     dets_json=dets_json,
@@ -248,7 +236,9 @@ def run_sweep(args):
                     score_thr=score_thr,
                     max_det_per_frame=k,
                 )
+                
                 for r in rows:
+                    # Save all per-video results
                     grid_rows.append(
                         {
                             "video": r["video"],
@@ -326,7 +316,7 @@ def run_sweep(args):
     print(f"Wrote grid CSV: {out_grid}")
     print(f"Wrote best CSV: {out_best}")
 
-
+# Parse the version specification str for the master mode
 def parse_version_spec(raw: str) -> Tuple[str, Path, float, str]:
     parts = [p.strip() for p in raw.split("|")]
     if len(parts) < 3:
@@ -339,7 +329,7 @@ def parse_version_spec(raw: str) -> Tuple[str, Path, float, str]:
     note = parts[3] if len(parts) > 3 else ""
     return name, dets_json, score_thr, note
 
-
+# Point d'entree pour evaluation de plusieurs versions -> ecrire les resultats par video + macro dans un CSV
 def run_master(args):
     annotations_csv = Path(args.annotations_csv)
     videos = args.videos if args.videos else discover_videos(annotations_csv)
@@ -392,17 +382,8 @@ def run_master(args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(description="Single-file evaluator for V4 (batch/sweep/master).")
+    p = argparse.ArgumentParser(description="Single-file evaluator for V4 (sweep/master).")
     sub = p.add_subparsers(dest="mode", required=True)
-
-    pb = sub.add_parser("batch", help="Evaluate one detections json on selected videos.")
-    pb.add_argument("--dets-json", type=str, required=True)
-    pb.add_argument("--annotations-csv", type=str, default="data/MoCA/Annotations/annotations.csv")
-    pb.add_argument("--videos", nargs="+", default=None)
-    pb.add_argument("--iou-threshold", type=float, default=0.5)
-    pb.add_argument("--score-threshold", type=float, default=0.1)
-    pb.add_argument("--max-det-per-frame", type=int, default=1)
-    pb.add_argument("--out-csv", type=str, default="outputs/owlvit/final/eval_batch.csv")
 
     ps = sub.add_parser("sweep", help="Sweep score/IoU thresholds for one detections json.")
     ps.add_argument("--dets-json", type=str, required=True)
@@ -430,10 +411,10 @@ def build_parser():
 
 
 def main():
+    # 1. Parse args
     args = build_parser().parse_args()
-    if args.mode == "batch":
-        run_batch(args)
-    elif args.mode == "sweep":
+    # 2. Dispatch to mode
+    if args.mode == "sweep":
         run_sweep(args)
     elif args.mode == "master":
         run_master(args)
