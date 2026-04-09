@@ -128,6 +128,7 @@ def process_video(
     top_k_per_frame: int,
     keep_full_frame_fallback: bool,
     max_frames_per_video: int | None,
+    frame_k: int,
 ) -> Dict[str, List[Dict]]:
     frame_paths = list_frames(video_dir)
 
@@ -138,26 +139,38 @@ def process_video(
         print(f"[warn] No frames found in {video_dir}")
         return {}
 
-    detections_by_frame: Dict[str, List[Dict]] = {}
-    prev_bgr = None
+    if frame_k < 1:
+        raise ValueError(f"FRAME_K must be >= 1, got {frame_k}")
 
-    for frame_idx, frame_path in enumerate(frame_paths):
-        curr_bgr = cv2.imread(str(frame_path), cv2.IMREAD_COLOR)
+    detections_by_frame: Dict[str, List[Dict]] = {}
+
+    for frame_idx in range(len(frame_paths)):
+        curr_path = frame_paths[frame_idx]
+        curr_bgr = cv2.imread(str(curr_path), cv2.IMREAD_COLOR)
+
         if curr_bgr is None:
-            print(f"[warn] Could not read frame: {frame_path}")
+            print(f"[warn] Could not read frame: {curr_path}")
             continue
 
-        frame_key = f"{video_name}/{frame_path.name}"
+        future_idx = frame_idx + frame_k
+        frame_key = f"{video_name}/{curr_path.name}"
 
-        # First frame: no previous frame available for differencing
-        if prev_bgr is None:
+        # No future frame available for t+k
+        if future_idx >= len(frame_paths):
             detections_by_frame[frame_key] = []
-            prev_bgr = curr_bgr
+            continue
+
+        future_path = frame_paths[future_idx]
+        future_bgr = cv2.imread(str(future_path), cv2.IMREAD_COLOR)
+
+        if future_bgr is None:
+            print(f"[warn] Could not read future frame: {future_path}")
+            detections_by_frame[frame_key] = []
             continue
 
         proposals, _ = generate_motion_proposals(
-            prev_bgr=prev_bgr,
-            curr_bgr=curr_bgr,
+            prev_bgr=curr_bgr,
+            curr_bgr=future_bgr,
             diff_threshold=diff_threshold,
             blur_ksize=blur_ksize,
             morph_kernel=morph_kernel,
@@ -172,17 +185,17 @@ def process_video(
         if keep_full_frame_fallback:
             proposals = add_full_frame_fallback(
                 proposals,
-                image_shape=curr_bgr.shape,
+                image_shape=future_bgr.shape,
                 fallback_score=1.0,
             )
 
         if len(proposals) == 0:
             detections_by_frame[frame_key] = []
-            prev_bgr = curr_bgr
             continue
 
+        # Use crops from the future frame t+k
         crops = [
-            crop_xyxy_from_bgr(curr_bgr, p.x1, p.y1, p.x2, p.y2)
+            crop_xyxy_from_bgr(future_bgr, p.x1, p.y1, p.x2, p.y2)
             for p in proposals
         ]
 
@@ -216,10 +229,9 @@ def process_video(
 
         print(
             f"[{video_name}] frame {frame_idx + 1}/{len(frame_paths)} "
-            f"{frame_path.name}: proposals={len(proposals)} kept={len(final_dets)}"
+            f"{curr_path.name} -> {future_path.name}: "
+            f"proposals={len(proposals)} kept={len(final_dets)}"
         )
-
-        prev_bgr = curr_bgr
 
     return detections_by_frame
 
@@ -255,6 +267,7 @@ def main():
     keep_full_frame_fallback = get_config_value("KEEP_FULL_FRAME_FALLBACK", False)
 
     max_frames_per_video = get_config_value("MAX_FRAMES_PER_VIDEO", None)
+    frame_k = get_config_value("FRAME_K", 1)
 
     output_json.parent.mkdir(parents=True, exist_ok=True)
 
@@ -282,7 +295,7 @@ def main():
             print(f"[warn] video dir not found, skipping: {video_dir}")
             continue
 
-        print(f"\nProcessing video: {video_name} :")
+        print(f"\nProcessing video: {video_name}")
         dets_video = process_video(
             video_name=video_name,
             video_dir=video_dir,
@@ -302,15 +315,17 @@ def main():
             top_k_per_frame=top_k_per_frame,
             keep_full_frame_fallback=keep_full_frame_fallback,
             max_frames_per_video=max_frames_per_video,
+            frame_k=frame_k,
         )
         all_detections.update(dets_video)
 
     payload = {
         "meta": {
-            "method": "v3_motion_clip_rerank",
+            "method": "v3_motion_clip_rerank_t_to_t_plus_k",
             "images_root": str(images_root),
             "prompts": list(prompts),
             "params": {
+                "frame_k": frame_k,
                 "diff_threshold": diff_threshold,
                 "blur_ksize": blur_ksize,
                 "morph_kernel": morph_kernel,
