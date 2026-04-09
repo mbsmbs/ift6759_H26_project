@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Sequence
 
 import cv2
-import configE_dev as config
+import configF_dev as config
 
 from motion_proposals import Proposal, add_full_frame_fallback, generate_motion_proposals
 from clip_rerank import CLIPReranker, crop_xyxy_from_bgr

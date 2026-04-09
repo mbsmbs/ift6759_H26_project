@@ -36,5 +36,5 @@ KEEP_FULL_FRAME_FALLBACK = False
 
 MAX_FRAMES_PER_VIDEO = None
 
-FRAME_K = 6  # or whatever you want
+FRAME_K = 3  # or whatever you want
 
