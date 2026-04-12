@@ -32,7 +32,7 @@ def main():
 
     data_yaml = Path(args.data_yaml)
     pretrained_model = Path(args.pretrained_model)
-    project_dir = Path(args.project_dir)
+    project_dir = Path(args.project_dir).resolve()
     run_dir = project_dir / args.run_name
 
     if not data_yaml.exists():
@@ -60,6 +60,14 @@ def main():
         pretrained=True,
         plots=True,
     )
+
+    # Ultralytics peut choisir un save_dir effectif différent selon l'environnement.
+    save_dir = None
+    if hasattr(train_results, "save_dir") and train_results.save_dir is not None:
+        save_dir = Path(str(train_results.save_dir))
+    else:
+        save_dir = run_dir
+    run_dir = save_dir
 
     best_pt = run_dir / "weights" / "best.pt"
     last_pt = run_dir / "weights" / "last.pt"
