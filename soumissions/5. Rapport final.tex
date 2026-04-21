@@ -1,0 +1,142 @@
+\documentclass{article}
+\usepackage{neurips_2025}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{float}
+
+\title{Détection d’animaux camouflés par information temporelle et modèles Vision-Langage}
+
+\author{
+  Mounir Ammam \\
+  Université de Montréal \\
+  \texttt{mounir.ammam@umontreal.ca}
+  \And
+  Byungsuk Min \\
+  Université de Montréal \\
+  \texttt{byungsuk.min@umontreal.ca}
+  \And
+  Yanis Chikhar \\
+  Université de Montréal \\
+  \texttt{yanis.chikhar@umontreal.ca}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Ce rapport présente les résultats finaux du projet sur la détection d’animaux camouflés dans MoCA. Nous comparons des approches CNN, une variante hybride mouvement + CLIP, une approche Vision-Language avec OWL-ViT (zéro-shot et fine-tuning), ainsi qu’une baseline YOLO préentraînée sans adaptation. Les évaluations sont réalisées avec un protocole commun basé sur AP@0.5, précision, rappel et F1. Les résultats montrent que la composante OWL-ViT fine-tunée fournit les meilleures performances globales parmi les configurations testées, tandis que la baseline YOLO zéro-shot reste compétitive en précision mais limitée en rappel.
+\end{abstract}
+
+\section{Introduction}
+La détection d’animaux camouflés constitue un cas difficile de détection d’objets, car l’animal partage souvent des caractéristiques visuelles avec son environnement immédiat (couleur, texture, contours). Dans ce contexte, un détecteur basé uniquement sur l’apparence peut confondre l’objet et le fond, ce qui dégrade la localisation et le rappel. Le jeu de données MoCA~\cite{li2021moca,moca_website} est particulièrement pertinent pour cette problématique, puisqu’il contient des séquences vidéo d’animaux camouflés annotées par boîtes englobantes.
+
+L’enjeu du projet est d’identifier quelles familles de méthodes restent robustes dans ce scénario. Nous comparons des approches classiques (V1/V2), une approche hybride mouvement + sémantique (V3), et des approches Vision-Language (V4), puis une baseline YOLO préentraînée (V5) pour situer le niveau de performance d’un détecteur standard non adapté à MoCA.
+
+Du point de vue méthodologique, nous cherchons à maintenir un protocole commun d’évaluation afin de rendre la comparaison inter-versions plus fiable. Les métriques retenues (AP@0.5, précision, rappel, F1) permettent de distinguer la qualité globale de détection, le contrôle des faux positifs et la capacité à retrouver les objets annotés.
+
+Ce rapport final présente donc: (i) le positionnement des approches testées, (ii) les résultats consolidés disponibles, en particulier pour V4 et V5, (iii) les limites observées sur les scènes à fort camouflage, et (iv) les éléments à compléter pour l’intégration finale de toutes les versions du projet.
+
+\section{Revue de la littérature}
+Les objets camouflés sont notoirement difficiles à détecter sur image unique, car le contraste objet/fond est faible et les indices de contour sont peu discriminants. Le benchmark MoCA~\cite{li2021moca} a précisément été introduit pour étudier ce cas en vidéo, où le mouvement devient une source d’information essentielle.
+
+Une première ligne de travaux repose sur des architectures visuelles classiques (CNN/détecteurs supervisés). Ces méthodes sont efficaces lorsque la distribution d’entraînement et de test est proche, mais elles deviennent plus fragiles en cas de fort décalage de domaine ou de camouflage extrême. Cette limite motive l’étude d’approches intégrant explicitement la dynamique temporelle ou la sémantique de haut niveau.
+
+Une seconde ligne explore l’information temporelle: différences inter-frames, agrégation de scores et suivi dans le temps. Dans les scènes camouflées, le temporel peut améliorer la stabilité des prédictions, notamment en réduisant les faux positifs isolés et en renforçant les détections cohérentes sur plusieurs images.
+
+Les modèles Vision-Language ont ouvert une troisième direction. CLIP~\cite{radford2021clip} apprend un espace image--texte partagé sur de très grands corpus, ce qui permet des usages zéro-shot. OWL-ViT~\cite{minderer2022owlvit} transpose cette idée à la détection open-vocabulary, en conditionnant la localisation par des prompts textuels. Cette propriété est pertinente pour MoCA, où la sémantique du texte peut compenser des signaux visuels ambigus.
+
+Enfin, YOLO représente une référence forte en détection supervisée efficace. Dans ce projet, nous utilisons une version Ultralytics préentraînée sur COCO~\cite{ultralytics_yolov8,lin2014coco} comme baseline de transférabilité sans adaptation à MoCA, afin de situer les performances d’un détecteur standard face aux approches Vision-Language.
+
+Ce positionnement motive directement nos choix expérimentaux: V3 (hybride mouvement + CLIP), V4 (OWL-ViT zéro-shot et fine-tuné) et V5 (YOLO préentraîné), tous évalués sous un protocole commun pour faciliter une comparaison cohérente.
+
+\section{Méthodes}
+\subsection{V1 et V2 (CNN)}
+\textit{[À compléter par les responsables V1/V2.]}
+
+\subsection{V3 (Hybride mouvement + CLIP)}
+\textit{[À compléter par le responsable V3.]}
+
+\subsection{V4 (OWL-ViT)}
+La composante V4 repose sur OWL-ViT~\cite{minderer2022owlvit,huggingface_owlvit_model} et suit une chaîne en quatre étapes. D’abord, une inférence frame-level est effectuée avec des prompts sémantiques liés au camouflage. Ensuite, les prédictions sont filtrées par seuil de confiance et par top-$k$ par frame afin de limiter les boîtes peu fiables. Une étape de raffinement temporel léger est ensuite appliquée pour stabiliser les détections entre frames voisines. Enfin, les sorties sont évaluées avec un protocole standardisé (IoU et seuil score fixes, métriques macro).
+
+Deux variantes sont étudiées: (i) V4 zéro-shot (poids préentraînés), et (ii) V4 fine-tuné sur MoCA avec séparation train/validation par vidéo. Le checkpoint final est sélectionné sur validation, puis un ajustement du seuil de score est réalisé pour obtenir la meilleure configuration opérationnelle.
+
+\subsection{V5 (YOLO zéro-shot-like)}
+V5 utilise un détecteur YOLOv8n préentraîné~\cite{ultralytics_yolov8} sans adaptation spécifique à MoCA. Les inférences sont produites sur les mêmes vidéos que V4, puis converties dans un format de sortie commun (\texttt{x1,y1,x2,y2,score,class\_id}) afin de garantir une évaluation homogène.
+
+Dans cette version, YOLO est traité comme baseline de transférabilité hors domaine: le modèle est préentraîné sur COCO~\cite{lin2014coco} et appliqué tel quel à MoCA. Un filtrage par classes animales COCO et une calibration du seuil de score sont appliqués pour obtenir une comparaison plus équitable avec les sorties V4.
+
+\section{Résultats}
+\subsection{Protocole d’évaluation}
+Les métriques utilisées sont AP@0.5, précision, rappel et F1 (macro sur vidéos). Une détection est considérée correcte lorsque l’IoU avec la boîte annotée est supérieure ou égale à 0.5.
+
+\subsection{Résultats V1}
+\textit{[À compléter par les responsables V1/V2.]}
+
+\subsection{Résultats V2}
+\textit{[À compléter par les responsables V1/V2.]}
+
+\subsection{Résultats V3}
+\textit{[À compléter par le responsable V3.]}
+
+\subsection{Résultats quantitatifs}
+\begin{table}[H]
+\centering
+\begin{tabular}{lccccc}
+\hline
+\textbf{Configuration} & \textbf{Seuil} & \textbf{AP@0.5} & \textbf{Précision} & \textbf{Rappel} & \textbf{F1} \\
+& \textbf{score} & \textbf{(macro)} & \textbf{(macro)} & \textbf{(macro)} & \textbf{(macro)} \\
+\hline
+V4 OWL-ViT zéro-shot & 0.10 & 0.7574 & 0.9196 & 0.7857 & 0.8365 \\
+V4 OWL-ViT fine-tuné & 0.08 & 0.8176 & 0.9199 & 0.7978 & 0.8438 \\
+V5 YOLOv8n préentraîné & 0.01 & 0.6387 & 0.7999 & 0.6249 & 0.6935 \\
+\hline
+\end{tabular}
+\caption{Comparaison finale V4/V5 sur 5 vidéos MoCA (IoU=0.5).}
+\label{tab:final_v4_v5}
+\end{table}
+
+\subsection{Analyse}
+La version V4 fine-tunée obtient le meilleur compromis global. Par rapport à V4 zéro-shot, le gain principal est observé sur AP@0.5 et F1. La baseline V5 (YOLO préentraîné sans adaptation) reste en retrait, notamment à cause d’un rappel plus faible, ce qui est cohérent avec le décalage de domaine entre COCO et MoCA.
+
+\subsection{Limitations}
+\subsubsection{V1 et V2 (CNN)}
+\textit{[À compléter par les responsables V1/V2.]}
+
+\subsubsection{V3 (Hybride mouvement + CLIP)}
+\textit{[À compléter par le responsable V3.]}
+
+\subsubsection{V4 et V5}
+Dans V4 (OWL-ViT), plusieurs tentatives d'amélioration de la version fine-tunée ont été essayées, telles que l'ajout d'augmentations de données plus agressives (rotation, bruit), l'ajustement des hyperparamètres (taux d'apprentissage, taille de batch) et l'expérimentation avec des prompts plus spécifiques. Cependant, ces modifications n'ont pas conduit à des gains significatifs en performance, probablement en raison de la taille limitée du dataset MoCA et de la complexité des scènes camouflées.
+
+Pour V5 (YOLO), des essais similaires ont été effectués, incluant le fine-tuning léger sur MoCA et l'ajustement des seuils de confiance. Ces efforts n'ont pas permis d'améliorer notablement les résultats, soulignant les limites de la transférabilité hors domaine de YOLO préentraîné sur COCO vers MoCA.
+
+\paragraph{Analyse V1/V2/V3}
+\textit{[À compléter par les responsables V1/V2/V3.]}
+
+\paragraph{Conclusion globale du projet (toutes versions)}
+\textit{[À compléter après intégration finale des sections V1/V2/V3.]}
+
+\section{Conclusion}
+Pour la partie V4/V5, les résultats montrent qu’une approche Vision-Language adaptée à la tâche (V4) est plus robuste qu’une baseline YOLO non spécialisée en mode zéro-shot-like sur MoCA. Les principales difficultés restent la localisation précise en cas de camouflage fort et la sensibilité aux choix de seuils d’évaluation.
+
+\section*{Contributions de chaque membre}
+\textbf{Byungsuk Min.} Proposition de l’idée initiale du projet et pilotage global de son avancement (planification, coordination des versions et intégration finale). Implémentation et évaluation principales de V4 (OWL-ViT) et V5 (YOLO baseline), calibration des seuils, construction du protocole de comparaison commun et rédaction/intégration des résultats finaux dans le rapport. Préparation de la présentation finale pour exposer les résultats et méthodologies du projet.
+
+\textbf{Mounir Ammam.} \textit{[À compléter par le responsable V3.]}
+
+\textbf{Yanis Chikhar.} \textit{[À compléter par le responsable V1/V2.]}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
