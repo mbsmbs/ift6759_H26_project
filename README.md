@@ -63,6 +63,24 @@ Le dossier `data/` est ignoré par git pour éviter de pousser le dataset.
 
 ## 4) Scripts principaux (résumé simple)
 
+### V1 (`scripts/v1`)
+
+- `create_v1_dataset.py`: construit un dataset `train/test` (échantillonnage d'images par classe).
+- `v1_train.py`: entraîne un ResNet18 et évalue par vote majoritaire au niveau dossier.
+
+### V2 (`scripts/v2`)
+
+- `create_v2_dataset.py`: construit un dataset `train/test` avec un split différent de V1.
+- `v2_train.py`: entraîne un ResNet18 et applique aussi le vote majoritaire.
+
+### V3 (`scripts/v3`)
+
+- `main_run_v3.py`: pipeline principal mouvement + CLIP (génération de propositions, reranking CLIP, sortie JSON).
+- `configA_dev.py ... configF_dev.py`: configurations expérimentales V3.
+- `motion_proposals.py`: génération de régions candidates par mouvement.
+- `clip_rerank.py`: score sémantique CLIP et reranking.
+- `eval_moca_detection.py`, `eval_moca_batch.py`: évaluation AP/F1 sur MoCA.
+
 ### V4 (`scripts/v4`)
 
 - `owlvit_infer.py`: inférence OWL-ViT et export JSON de détections.
@@ -75,11 +93,43 @@ Le dossier `data/` est ignoré par git pour éviter de pousser le dataset.
 - `yolo_zeroshot_infer.py`: inférence YOLOv8n préentraîné (option `--animal-only`) et export JSON compatible V4.
 - `README_V5.md`: guide d'exécution V5.
 
-### V1/V2/V3
+## 5) Reproduction minimale (V1 à V5)
 
-Les scripts de ces versions sont dans `scripts/v1`, `scripts/v2`, `scripts/v3` et suivent les pipelines développés par les responsables respectifs.
+### V1: dataset + entraînement
 
-## 5) Reproduction minimale (V4 + V5)
+```bash
+python scripts/v1/create_v1_dataset.py
+python scripts/v1/v1_train.py
+```
+
+Important: les scripts V1 actuels contiennent des chemins Windows codés en dur (ex: `C:\\Users\\...`).  
+Adapter `source_root`, `destination_root` et `DATA` avant exécution sur votre machine.
+
+### V2: dataset + entraînement
+
+```bash
+python scripts/v2/create_v2_dataset.py
+python scripts/v2/v2_train.py
+```
+
+Même remarque que V1: adapter les chemins locaux dans les scripts.
+
+### V3: exécution + évaluation
+
+```bash
+# 1) Choisir une config (ex: E) dans main_run_v3.py
+#    (import configE_dev as config)
+python scripts/v3/main_run_v3.py
+
+# 2) Évaluer le JSON produit
+python scripts/v3/eval_moca_batch.py \
+  --dets-json outputs/v3/dev_predictions_E.json \
+  --annotations-csv data/MoCA/Annotations/annotations.csv \
+  --iou-threshold 0.5 \
+  --score-threshold 0.2 \
+  --max-det-per-frame 1 \
+  --output-csv outputs/v3/eval_v3_dev_E.csv
+```
 
 ### V4: OWL-ViT zero-shot/fine-tuning
 
@@ -95,7 +145,17 @@ Voir:
 
 ## 6) Fichiers de sorties utiles
 
-Exemples de sorties finales:
+Exemples de sorties finales (V1 à V5):
+
+- V1:
+  - `resnet_v1_cls.pth`
+  - `resnet_v1_cls.joblib`
+- V2:
+  - `resnet_v2_cls.pth`
+  - `resnet_v2_cls.joblib`
+- V3:
+  - `outputs/v3/dev_predictions_*.json` (selon config A..F)
+  - `outputs/v3/eval_v3_*.csv` (si export batch activé)
 
 - V4:
   - `outputs/owlvit/final/dets_top1_refined_5videos.json`
