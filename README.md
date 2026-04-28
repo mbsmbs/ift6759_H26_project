@@ -193,3 +193,9 @@ Les scores sont reportés en macro (moyenne par vidéo).
 
 - YOLOv8 (Ultralytics docs):  
   https://docs.ultralytics.com
+
+## 9) Papiers locaux (`papers/`)
+
+- `papers/2011.11630v1.pdf`
+- `papers/2103.00020v1.pdf`
+- `papers/Cheng_Implicit_Motion_Handling_for_Video_Camouflaged_Object_Detection_CVPR_2022_paper.pdf`
