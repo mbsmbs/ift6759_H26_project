@@ -194,7 +194,7 @@ Les scores sont reportés en macro (moyenne par vidéo).
 - YOLOv8 (Ultralytics docs):  
   https://docs.ultralytics.com
 
-## 9) Liens officiels des papiers
+## 9) Références des papiers
 
 - `papers/2011.11630v1.pdf`  
   ArXiv (original): https://arxiv.org/abs/2011.11630
