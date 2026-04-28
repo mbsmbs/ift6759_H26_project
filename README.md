@@ -180,22 +180,28 @@ Les scores sont reportés en macro (moyenne par vidéo).
 ## 8) Références principales
 
 - MoCA dataset:  
-  Li et al., *Moving Camouflaged Object Detection*, CVPR 2021.  
+  Li et al., _Moving Camouflaged Object Detection_, CVPR 2021.  
   https://arxiv.org/abs/2105.03248
 
 - CLIP:  
-  Radford et al., *Learning Transferable Visual Models From Natural Language Supervision*, ICML 2021.  
+  Radford et al., _Learning Transferable Visual Models From Natural Language Supervision_, ICML 2021.  
   https://arxiv.org/abs/2103.00020
 
 - OWL-ViT:  
-  Minderer et al., *Simple Open-Vocabulary Object Detection with Vision Transformers*, ECCV 2022.  
+  Minderer et al., _Simple Open-Vocabulary Object Detection with Vision Transformers_, ECCV 2022.  
   https://arxiv.org/abs/2205.06230
 
 - YOLOv8 (Ultralytics docs):  
   https://docs.ultralytics.com
 
-## 9) Papiers locaux (`papers/`)
+## 9) Papiers locaux (`papers/`) et liens officiels
 
-- `papers/2011.11630v1.pdf`
-- `papers/2103.00020v1.pdf`
-- `papers/Cheng_Implicit_Motion_Handling_for_Video_Camouflaged_Object_Detection_CVPR_2022_paper.pdf`
+- `papers/2011.11630v1.pdf`  
+  ArXiv (original): https://arxiv.org/abs/2011.11630
+
+- `papers/2103.00020v1.pdf`  
+  CLIP (ArXiv original): https://arxiv.org/abs/2103.00020
+
+- `papers/Cheng_Implicit_Motion_Handling_for_Video_Camouflaged_Object_Detection_CVPR_2022_paper.pdf`  
+  CVPR 2022 (OpenAccess):  
+  https://openaccess.thecvf.com/content/CVPR2022/html/Cheng_Implicit_Motion_Handling_for_Video_Camouflaged_Object_Detection_CVPR_2022_paper.html
