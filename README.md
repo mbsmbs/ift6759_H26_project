@@ -196,12 +196,12 @@ Les scores sont reportés en macro (moyenne par vidéo).
 
 ## 9) Références des papiers
 
-- `papers/2011.11630v1.pdf`  
-  ArXiv (original): https://arxiv.org/abs/2011.11630
+- **MoCA: A Motion-guided Video Camouflaged Object Detection Dataset**  
+  ArXiv: https://arxiv.org/abs/2011.11630
 
-- `papers/2103.00020v1.pdf`  
-  CLIP (ArXiv original): https://arxiv.org/abs/2103.00020
+- **Learning Transferable Visual Models From Natural Language Supervision (CLIP)**  
+  ArXiv: https://arxiv.org/abs/2103.00020
 
-- `papers/Cheng_Implicit_Motion_Handling_for_Video_Camouflaged_Object_Detection_CVPR_2022_paper.pdf`  
+- **Implicit Motion Handling for Video Camouflaged Object Detection**  
   CVPR 2022 (OpenAccess):  
   https://openaccess.thecvf.com/content/CVPR2022/html/Cheng_Implicit_Motion_Handling_for_Video_Camouflaged_Object_Detection_CVPR_2022_paper.html
