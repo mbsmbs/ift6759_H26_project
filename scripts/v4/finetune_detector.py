@@ -17,7 +17,7 @@ os.environ.setdefault("USE_FLAX", "0")
 
 from transformers import OwlViTForObjectDetection, OwlViTProcessor
 
-from eval_moca_detection import evaluate as eval_det
+from evaluate_v4 import evaluate_one as eval_det
 
 # Sample = 1 image + its path + its bounding box
 @dataclass
@@ -260,6 +260,9 @@ def validate_model(
     device: torch.device,
     score_threshold: float,
     max_samples: int,
+    cls_w: float,
+    box_w: float,
+    iou_w: float,
 ) -> Dict[str, float]:
     # Validation en mode "detection": AP/F1 via les métriques déjà utilisées dans le projet.
     model.eval()
@@ -268,6 +271,7 @@ def validate_model(
 
     dets_by_frame = {}
     gt_by_frame = {}
+    val_losses = []
     for s in subset:
         # 1. load image
         image = Image.open(s.image_path).convert("RGB")
@@ -279,6 +283,22 @@ def validate_model(
         inputs = {k: v.to(device) for k, v in inputs.items()}
         # 4. Run model
         outputs = model(**inputs)
+
+        # 4b. Compute validation loss with the same loss definition as training
+        w, h = image.size
+        gt_box_norm = torch.tensor(
+            [xyxy_to_cxcywh_norm(s.gt_xyxy, w=w, h=h)],
+            dtype=torch.float32,
+            device=device,
+        )  # [1,4]
+        val_loss, _ = compute_train_loss(
+            outputs=outputs,
+            gt_boxes_cxcywh=gt_box_norm,
+            cls_w=cls_w,
+            box_w=box_w,
+            iou_w=iou_w,
+        )
+        val_losses.append(float(val_loss.item()))
 
         target_sizes = torch.tensor([image.size[::-1]], device=device)
         # 5. Convert predictions into real detection boxes
@@ -315,6 +335,7 @@ def validate_model(
     )
     # 9. Metrics
     return {
+        "val_loss": float(mean(val_losses)) if val_losses else 0.0,
         "val_ap50": float(res["ap50"]),
         "val_precision": float(res["op_precision"]),
         "val_recall": float(res["op_recall"]),
@@ -426,6 +447,9 @@ def main():
             device=device,
             score_threshold=args.val_threshold,
             max_samples=args.val_max_samples,
+            cls_w=args.loss_cls_weight,
+            box_w=args.loss_box_weight,
+            iou_w=args.loss_iou_weight,
         )
         row = {
             "epoch": epoch,
@@ -436,6 +460,7 @@ def main():
         history.append(row)
         print(
             f"epoch={epoch:02d} train_loss={train_loss:.4f} train_iou={train_mean_iou:.4f} "
+            f"val_loss={row['val_loss']:.4f} "
             f"val_ap50={row['val_ap50']:.4f} val_f1={row['val_f1']:.4f} "
             f"val_p={row['val_precision']:.4f} val_r={row['val_recall']:.4f}"
         )
