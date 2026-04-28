@@ -3,6 +3,7 @@
 
 data/
 owlvit/
+soumissions/
 *.pyc
 
 # Yanis
