@@ -8,8 +8,9 @@ from torchvision import datasets, transforms, models
 from PIL import Image
 import joblib
 
-# Parametres
-DATA = r"C:\Users\chikh\OneDrive\Desktop\MoCA\V2"
+from sklearn.metrics import precision_score, recall_score, classification_report, confusion_matrix
+
+DATA = r"IFT6759_H26_PROJECT\scripts\v2"
 BATCH = 32
 EPOCHS = 5
 LR = 1e-4
@@ -29,7 +30,6 @@ transform_test = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-print("Chargement du dataset d'entrainement...")
 train_ds = datasets.ImageFolder(root=DATA + r"\train", transform=transform_train)
 train_loader = DataLoader(train_ds, batch_size=BATCH, shuffle=True, num_workers=0)
 
@@ -38,7 +38,7 @@ print("Classes :", train_ds.classes)
 print("Nombre d'images train :", len(train_ds))
 print("Nombre de batches train :", len(train_loader))
 
-# Modèle
+# Modele
 print("Creation du modele ResNet18...")
 model = models.resnet18(weights="DEFAULT")
 model.fc = nn.Linear(model.fc.in_features, len(train_ds.classes))
@@ -75,18 +75,21 @@ for epoch in range(EPOCHS):
 
     print(f"Fin epoch {epoch+1}/{EPOCHS} | loss_moyenne={running/len(train_loader):.4f}")
 
-# Mapping indice -> nom de classe
+# Mapping indice vers nom de classe
 idx_to_class = {i: c for i, c in enumerate(train_ds.classes)}
+class_to_idx = train_ds.class_to_idx
 
 # Test sur V2/test avec vote majoritaire par dossier
 test_root = DATA + r"\test"
-print("\nDebut de la phase de test par vote majoritaire...")
-print("Dossier test :", test_root)
+
 
 model.eval()
 folder_results = []
 correct_folders = 0
 total_folders = 0
+
+y_true = []
+y_pred = []
 
 with torch.no_grad():
     for true_class_name in sorted(os.listdir(test_root)):
@@ -104,9 +107,8 @@ with torch.no_grad():
             print(f"Dossier ignore (vide) : {true_class_name}")
             continue
 
-        print(f"\nTest du dossier : {true_class_name} | nb_images={len(image_files)}")
         predictions = []
-
+        #Vote de majorité 
         for image_file in image_files:
             image_path = os.path.join(class_folder, image_file)
             image = Image.open(image_path).convert("RGB")
@@ -130,36 +132,32 @@ with torch.no_grad():
             "correct": is_correct
         })
 
-        print(
-            f"Prediction majoritaire : {majority_pred} | "
-            f"correct={is_correct}"
-        )
+        y_true.append(class_to_idx[true_class_name])
+        y_pred.append(class_to_idx[majority_pred])
 
-print("\nResultats finaux par dossier :")
-for result in folder_results:
-    print(
-        f"dossier={result['true_folder']} | "
-        f"prediction_majoritaire={result['pred_folder']} | "
-        f"nb_images={result['num_images']} | "
-        f"correct={result['correct']}"
-    )
+        print(f"Prediction majoritaire : {majority_pred} | " f"correct={is_correct}")
 
+# Accuracy
 folder_accuracy = correct_folders / max(1, total_folders)
+
+# Precision/rappel
+precision_macro = precision_score(y_true, y_pred, average="macro", zero_division=0)
+recall_macro = recall_score(y_true, y_pred, average="macro", zero_division=0)
+
 print(f"\nAccuracy par vote majoritaire sur les dossiers : {folder_accuracy:.3f}")
+print(f"Precision macro : {precision_macro:.3f}")
+print(f"Rappel macro    : {recall_macro:.3f}")
+
 
 # Sauvegarde
 print("\nSauvegarde du modele...")
 torch.save({
     "state_dict": model.state_dict(),
     "classes": train_ds.classes
-}, r"C:\Users\chikh\OneDrive\Desktop\MoCA\resnet_v2_cls.pth")
+}, r"IFT6759_H26_PROJECT\scripts\v2\resnet_v2_cls.pth")
 
 checkpoint_joblib = {
     "state_dict": {k: v.cpu() for k, v in model.state_dict().items()},
     "classes": train_ds.classes
 }
-joblib.dump(checkpoint_joblib, r"C:\Users\chikh\OneDrive\Desktop\MoCA\resnet_v2_cls.joblib")
-
-print("Modele .pth sauvegarde")
-print("Modele .joblib sauvegarde")
-print("Execution terminee")
+joblib.dump(checkpoint_joblib, r"IFT6759_H26_PROJECT\scripts\v2\resnet_v2_cls.joblib")
