@@ -8,8 +8,9 @@ from torchvision import datasets, transforms, models
 from PIL import Image
 import joblib
 
-# Parametres
-DATA = r"C:\Users\chikh\OneDrive\Desktop\MoCA\V1"
+from sklearn.metrics import precision_score, recall_score, classification_report, confusion_matrix
+
+DATA = r"IFT6759_H26_PROJECT\scripts\v1"
 BATCH = 32
 EPOCHS = 5
 LR = 1e-4
@@ -77,6 +78,7 @@ for epoch in range(EPOCHS):
 
 # Mapping indice -> nom de classe
 idx_to_class = {i: c for i, c in enumerate(train_ds.classes)}
+class_to_idx = train_ds.class_to_idx
 
 # Test sur V1/test avec vote majoritaire par dossier
 test_root = DATA + r"\test"
@@ -87,6 +89,10 @@ model.eval()
 folder_results = []
 correct_folders = 0
 total_folders = 0
+
+# Listes pour precision / rappel
+y_true = []
+y_pred = []
 
 with torch.no_grad():
     for true_class_name in sorted(os.listdir(test_root)):
@@ -130,6 +136,9 @@ with torch.no_grad():
             "correct": is_correct
         })
 
+        y_true.append(class_to_idx[true_class_name])
+        y_pred.append(class_to_idx[majority_pred])
+
         print(
             f"Prediction majoritaire : {majority_pred} | "
             f"correct={is_correct}"
@@ -144,22 +153,26 @@ for result in folder_results:
         f"correct={result['correct']}"
     )
 
+# Accuracy
 folder_accuracy = correct_folders / max(1, total_folders)
+
+# Precision / rappel
+precision_macro = precision_score(y_true, y_pred, average="macro", zero_division=0)
+recall_macro = recall_score(y_true, y_pred, average="macro", zero_division=0)
+
 print(f"\nAccuracy par vote majoritaire sur les dossiers : {folder_accuracy:.3f}")
+print(f"Precision macro : {precision_macro:.3f}")
+print(f"Rappel macro    : {recall_macro:.3f}")
 
 # Sauvegarde
 print("\nSauvegarde du modele...")
 torch.save({
     "state_dict": model.state_dict(),
     "classes": train_ds.classes
-}, r"C:\Users\chikh\OneDrive\Desktop\MoCA\resnet_v1_cls.pth")
+}, r"IFT6759_H26_PROJECT\scripts\v1\resnet_v1_cls.pth")
 
 checkpoint_joblib = {
     "state_dict": {k: v.cpu() for k, v in model.state_dict().items()},
     "classes": train_ds.classes
 }
-joblib.dump(checkpoint_joblib, r"C:\Users\chikh\OneDrive\Desktop\MoCA\resnet_v1_cls.joblib")
-
-print("Modele .pth sauvegarde")
-print("Modele .joblib sauvegarde")
-print("Execution terminee")
+joblib.dump(checkpoint_joblib, r"IFT6759_H26_PROJECT\scripts\v1\resnet_v1_cls.joblib")
